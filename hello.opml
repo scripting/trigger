@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<opml version="2.0">
+	<head>
+		<title>hello.opml</title>
+		</head>
+	<body>
+		<outline text="local (theNames = {})">
+			</outline>
+		<outline text="theNames = theNames + string.lower (&quot;HELLO&quot;)">
+			</outline>
+		<outline text="theNames = theNames + string.upper (&quot;frontier&quot;)">
+			</outline>
+		<outline text="theNames">
+			</outline>
+		</body>
+	</opml>

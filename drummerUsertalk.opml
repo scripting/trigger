@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+<opml version="2.0">
+	<head>
+		<title>drummerUsertalk</title>
+		<ownerId>dave.winer@gmail.com</ownerId>
+		<urlUpdateSocket>wss://drummer.land/</urlUpdateSocket>
+		<dateCreated>Tue, 04 Aug 2026 13:19:50 GMT</dateCreated>
+		<dateModified>Tue, 04 Aug 2026 15:06:03 GMT</dateModified>
+		<expansionState>1</expansionState>
+		<lastCursor>1</lastCursor>
+		</head>
+	<body>
+		<outline text="usertalk" created="Tue, 04 Aug 2026 17:05:00 GMT">
+			<outline text="{" created="Tue, 04 Aug 2026 14:52:00 GMT">
+				<outline text="urlServer: &quot;https://trigger.usertalk.org&quot;,"/>
+				<outline text="callServer: async function (thePath, theParams, theBody) {" created="Tue, 04 Aug 2026 13:20:01 GMT">
+					<outline text="//one transport primitive -- the three calls below are one-liners on top of it"/>
+					<outline text="//the second param of http.client is false so the request goes direct -- the password must not travel through a proxy server"/>
+					<outline text="var theUrl = root.usertalk.urlServer + thePath + &quot;?password=&quot; + encodeURIComponent (root.user.prefs.usertalkPassword);"/>
+					<outline text="Object.keys (theParams).forEach (function (theName) {">
+						<outline text="theUrl += &quot;&amp;&quot; + theName + &quot;=&quot; + encodeURIComponent (theParams [theName]);"/>
+						<outline text="});"/>
+						</outline>
+					<outline text=""/>
+					<outline text="const theOptions = {url: theUrl, type: &quot;GET&quot;};"/>
+					<outline text="if (theBody !== undefined) {">
+						<outline text="theOptions.type = &quot;POST&quot;;"/>
+						<outline text="theOptions.data = theBody;"/>
+						<outline text="}"/>
+						</outline>
+					<outline text=""/>
+					<outline text="const theResponse = await http.client (theOptions, false); //http.client answers with a promise -- root code isn't preprocessed, so the await is spelled out"/>
+					<outline text="var theResult;"/>
+					<outline text="if (typeof theResponse === &quot;object&quot;) { //a JSON answer arrives already parsed">
+						<outline text="theResult = theResponse;"/>
+						<outline text="}"/>
+						</outline>
+					<outline text="else {">
+						<outline text="try {">
+							<outline text="theResult = JSON.parse (theResponse);"/>
+							<outline text="}"/>
+							</outline>
+						<outline text="catch (err) {">
+							<outline text="throw new Error (&quot;Can't reach the server at &quot; + root.usertalk.urlServer + &quot; because it answered with something that isn't JSON: &quot; + String (theResponse).substring (0, 200));"/>
+							<outline text="}"/>
+							</outline>
+						<outline text="}"/>
+						</outline>
+					<outline text="if (theResult.message !== undefined) {">
+						<outline text="throw new Error (theResult.message);"/>
+						<outline text="}"/>
+						</outline>
+					<outline text="return (theResult);"/>
+					<outline text="},"/>
+					</outline>
+				<outline text="runScript: async function (theScript) {" created="Tue, 04 Aug 2026 13:20:45 GMT">
+					<outline text="//run a UserTalk script on the server, get the value back"/>
+					<outline text="const theResult = await root.usertalk.callServer (&quot;/run&quot;, {}, theScript);"/>
+					<outline text="return (theResult.value);"/>
+					<outline text="},"/>
+					</outline>
+				<outline text="downloadObject: async function (adrSource) {" created="Tue, 04 Aug 2026 13:20:59 GMT">
+					<outline text="//get a script or an outline from the server's database -- it comes back as OPML text"/>
+					<outline text="const theResult = await root.usertalk.callServer (&quot;/downloadobject&quot;, {address: adrSource}, undefined);"/>
+					<outline text="return (theResult.opmltext);"/>
+					<outline text="},"/>
+					</outline>
+				<outline text="uploadObject: async function (opmltext, adrDest, theType) {" created="Tue, 04 Aug 2026 13:21:03 GMT">
+					<outline text="//install an outline in the server's database, at adrDest"/>
+					<outline text="//theType is &quot;script&quot; or &quot;outline&quot;, and it's optional -- script is the default"/>
+					<outline text="if (theType === undefined) {">
+						<outline text="theType = &quot;script&quot;;"/>
+						<outline text="}"/>
+						</outline>
+					<outline text="const theResult = await root.usertalk.callServer (&quot;/uploadobject&quot;, {address: adrDest, type: theType}, opmltext);"/>
+					<outline text="return (theResult.note); //a message property would have meant an error"/>
+					<outline text="}"/>
+					</outline>
+				<outline text="}"/>
+				</outline>
+			</outline>
+		<outline text="test code" isComment="true" created="Tue, 04 Aug 2026 13:19:48 GMT">
+			<outline text="dialog.alert (root.usertalk.runScript (&quot;string.lower (\&quot;HELLO Frontier\&quot;)&quot;));"/>
+			<outline text="dialog.alert (root.usertalk.downloadObject (&quot;system.temp.examplescript&quot;));"/>
+			<outline text="dialog.alert (root.usertalk.uploadObject (opml.getCurrentOpml (), &quot;system.temp.fromDrummer&quot;, &quot;script&quot;));"/>
+			<outline text="publish an outline -- the new uploadScripts takes the address of the outline to build" isComment="true">
+				<outline text="dialog.alert (root.usertalk.uploadObject (opml.getCurrentOpml (), &quot;system.temp.theOutline&quot;, &quot;outline&quot;));"/>
+				<outline text="dialog.alert (root.usertalk.runScript (&quot;nodeEditorSuite.uploadScripts (@system.temp.theOutline)&quot;));"/>
+				</outline>
+			</outline>
+		</body>
+	</opml>

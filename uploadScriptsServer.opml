@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+	<head>
+		<title>uploadScripts</title>
+		</head>
+	<body>
+		<outline text="on uploadScripts (adrOutline=nil)">
+			<outline text="Changes" isComment="true">
+				<outline text="8/4/26 by CC" isComment="true">
+					<outline text="Adapted for trigger on marin. With an address -- uploadScripts (@system.temp.sallyreader) -- it builds that outline, the way Electric Drummer calls it. With no param it behaves as the desktop original (window.frontmost)." isComment="true">
+					</outline>
+					<outline text="The glossary and the opml shell are real copies here. The desktop script mutated its in-memory copies, which Frontier's copy-on-assign made safe; in this interpreter assignment binds a reference, so the copies are explicit and the database tables are never changed." isComment="true">
+					</outline>
+					<outline text="worldoutlinesuite.processMacros is guarded -- it isn't in this database." isComment="true">
+					</outline>
+					<outline text="The desktop original is preserved in trigger/uploadScriptsDesktopOriginal.opml." isComment="true">
+					</outline>
+				</outline>
+				<outline text="7/18/23; 6:42:05 AM by DW" isComment="true">
+					<outline text="Save objects to the Kansas folder in Dropbox." isComment="true">
+					</outline>
+				</outline>
+				<outline text="2/4/22; 3:49:53 PM by DW" isComment="true">
+					<outline text="With a glossary value flS3Upload you can turn off uploads of files to S3." isComment="true">
+					</outline>
+				</outline>
+				<outline text="10/6/18; 9:51:17 AM by DW" isComment="true">
+					<outline text="Allow comments to be included in generated text." isComment="true">
+					</outline>
+				</outline>
+				<outline text="4/5/14; 9:57:27 PM by DW" isComment="true">
+					<outline text="Created." isComment="true">
+					</outline>
+				</outline>
+			</outline>
+			<outline text="local (flExportToKansas = false) //7/18/23 by DW and turned off 3/21/25 by DW">
+			</outline>
+			<outline text="local (flIncludeComments = false) //10/6/18 by DW">
+			</outline>
+			<outline text="local (adrTopOutline = adrOutline) //8/4/26 by CC -- the outline to build: the caller's, or the frontmost window's">
+			</outline>
+			<outline text="if not defined (adrTopOutline)">
+				<outline text="adrTopOutline = window.frontmost ()">
+				</outline>
+			</outline>
+			<outline text="bundle //set flIncludeComments -- 10/6/18 by DW">
+				<outline text="local (adrparent = parentof (adrTopOutline^))">
+				</outline>
+				<outline text="try">
+					<outline text="flIncludeComments = boolean (adrparent^.glossary.flIncludeComments)">
+					</outline>
+				</outline>
+			</outline>
+			<outline text="local (flS3Upload = true) //2/4/22 by DW">
+			</outline>
+			<outline text="bundle //set flS3Upload">
+				<outline text="local (adrparent = parentof (adrTopOutline^))">
+				</outline>
+				<outline text="try">
+					<outline text="flS3Upload = boolean (adrparent^.glossary.flS3Upload)">
+					</outline>
+				</outline>
+			</outline>
+			<outline text="local (adrdata = nodeEditorSuite.init (), xstruct, buildScript)">
+			</outline>
+			<outline text="local (adrparent = parentof (adrTopOutline^))">
+			</outline>
+			<outline text="local (opmltext = op.outlinetoxml (adrTopOutline)) //6/20/14 by DW">
+			</outline>
+			<outline text="if flExportToKansas //7/18/23 by DW">
+				<outline text="local (adrprojectdata = @adrparent^.data) //7/21/23 by DW">
+				</outline>
+				<outline text="if not defined (adrprojectdata^)">
+					<outline text="new (tabletype, adrprojectdata)">
+					</outline>
+					<outline text="adrprojectdata^.serialnum = 0">
+					</outline>
+				</outline>
+				<outline text="adrprojectdata^.whenLastUpdate = clock.now ()">
+				</outline>
+				<outline text="local (serialnum = adrprojectdata^.serialnum++)">
+				</outline>
+				<outline text="local (basefolder = nodeEditorSuite.getKansasProjectFolder (nameof (adrparent^)))">
+				</outline>
+				<outline text="local (nameproject = nameof (adrparent^)) //new simpler version -- 7/19/23 by DW">
+				</outline>
+				<outline text="local (f = basefolder + &quot;code.fttb&quot;)">
+				</outline>
+				<outline text="file.surefilepath (f)">
+				</outline>
+				<outline text="export.sendObject (adrparent, f)">
+				</outline>
+				<outline text="local (farchive = basefolder + &quot;snapshots:&quot; + string.padwithzeros (serialnum, 3) + &quot;.fttb&quot;)">
+				</outline>
+				<outline text="file.surefilepath (farchive)">
+				</outline>
+				<outline text="export.sendObject (adrparent, farchive)">
+				</outline>
+			</outline>
+			<outline text="xml.compile (opmltext, @xstruct)">
+			</outline>
+			<outline text="scratchpad.xstruct = xstruct">
+			</outline>
+			<outline text="local (adrbody = xml.opml.getbodyaddress (@xstruct), adrnode)">
+			</outline>
+			<outline text="local (opmlshelltext = xml.decompile (@nodeEditorSuite.data.opmlShellStruct)) //8/4/26 by CC -- each .opml file compiles a fresh shell from this text">
+			</outline>
+			<outline text="on gettext (adrx)">
+				<outline text="return (string.trimwhitespace (xml.getattributevalue (adrx, &quot;text&quot;)))">
+				</outline>
+			</outline>
+			<outline text="on iscomment (adrx)">
+				<outline text="local (adratt = @adrx^.[&quot;/atts&quot;].isComment)">
+				</outline>
+				<outline text="if defined (adratt^) and (adratt^ == &quot;true&quot;)">
+					<outline text="return (true)">
+					</outline>
+				</outline>
+				<outline text="return (false)">
+				</outline>
+			</outline>
+			<outline text="on writelocaltextfile (f, s)">
+				<outline text="f = string.replaceall (f, &quot;/&quot;, &quot;:&quot;)">
+				</outline>
+				<outline text="file.surefilepath (f)">
+				</outline>
+				<outline text="scratchpad.f = f">
+				</outline>
+				<outline text="file.writewholefile (f, s)">
+				</outline>
+			</outline>
+			<outline text="for adrpath in adrbody //first-level items contain paths">
+				<outline text="if nameof (adrpath^) endswith &quot;outline&quot;">
+					<outline text="if not iscomment (adrpath)">
+						<outline text="local (s3path = gettext (adrpath), fldropbox = false, flpublicfolder = false, flgithub = false, flfile = false, flallservers = false)">
+						</outline>
+						<outline text="if string.lower (s3path) == &quot;build script&quot;">
+							<outline text="html.directory.getRawHtml (adrpath, @buildScript)">
+							</outline>
+						</outline>
+						<outline text="else">
+							<outline text="local (lowers3path = string.lower (s3path))">
+							</outline>
+							<outline text="if lowers3path beginswith &quot;file:&quot; //11/10/18 by DW">
+								<outline text="flfile = true;">
+								</outline>
+								<outline text="s3path = string.delete (s3path, 1, 5)">
+								</outline>
+							</outline>
+							<outline text="if lowers3path beginswith &quot;dropbox:&quot; //12/25/14 by DW">
+								<outline text="fldropbox = true;">
+								</outline>
+								<outline text="s3path = string.delete (s3path, 1, 8)">
+								</outline>
+							</outline>
+							<outline text="if lowers3path beginswith &quot;publicfolder:&quot; //8/31/17 by DW">
+								<outline text="flpublicfolder = true;">
+								</outline>
+								<outline text="s3path = string.delete (s3path, 1, 13)">
+								</outline>
+							</outline>
+							<outline text="if lowers3path beginswith &quot;github:&quot; //12/13/17 by DW">
+								<outline text="flgithub = true;">
+								</outline>
+								<outline text="s3path = string.delete (s3path, 1, 7)">
+								</outline>
+							</outline>
+							<outline text="if lowers3path beginswith &quot;allservers:&quot; //6/12/20 by DW">
+								<outline text="flallservers = true;">
+								</outline>
+								<outline text="s3path = string.delete (s3path, 1, 11)">
+								</outline>
+							</outline>
+							<outline text="for adrnode in adrpath">
+								<outline text="if nameof (adrnode^) endswith &quot;outline&quot;">
+									<outline text="if not iscomment (adrnode)">
+										<outline text="local (fname = string.lower (gettext (adrnode)))">
+										</outline>
+										<outline text="if sizeof (fname) &gt; 0">
+											<outline text="if string.lower (fname) == &quot;build script&quot;">
+												<outline text="html.directory.getRawHtml (adrnode, @buildScript)">
+												</outline>
+											</outline>
+											<outline text="else">
+												<outline text="local (myfolder = string.replaceall (s3path, &quot;/&quot;, &quot;-&quot;))">
+												</outline>
+												<outline text="if myfolder beginswith &quot;-&quot;">
+													<outline text="myfolder = string.delete (myfolder, 1, 1)">
+													</outline>
+												</outline>
+												<outline text="if myfolder endswith &quot;-&quot;">
+													<outline text="myfolder = string.delete (myfolder, sizeof (myfolder), 1)">
+													</outline>
+												</outline>
+												<outline text="local (f = adrdata^.prefs.folder + myfolder + file.getpathchar () + fname, filetext, flwrite = true)">
+												</outline>
+												<outline text="if flfile //11/10/18 by DW">
+													<outline text="f = s3path + fname">
+													</outline>
+												</outline>
+												<outline text="if fldropbox //12/25/14 by DW">
+													<outline text="f = user.prefs.dropboxfolder + s3path + fname">
+													</outline>
+												</outline>
+												<outline text="if flpublicfolder //8/31/17 by DW">
+													<outline text="f = user.prefs.publicfolder + s3path + fname">
+													</outline>
+												</outline>
+												<outline text="if flgithub //12/13/17 by DW">
+													<outline text="f = adrdata^.prefs.github.folder + s3path + fname">
+													</outline>
+												</outline>
+												<outline text="if flallservers //6/12/20 by DW">
+													<outline text="f = nodeEditorSuite.getAllServersFolder () + s3path + fname">
+													</outline>
+												</outline>
+												<outline text="bundle //set filetext">
+													<outline text="if fname endswith &quot;.opml&quot;">
+														<outline text="local (xstruct = xml.compile (opmlshelltext)) //8/4/26 by CC -- a fresh shell, not the shared table">
+														</outline>
+														<outline text="bundle //copy atts into &lt;head&gt; if present">
+															<outline text="local (adratts = @adrnode^.[&quot;/atts&quot;])">
+															</outline>
+															<outline text="if sizeof (adratts^) &gt; 1">
+																<outline text="local (adrhead = xml.getaddress (xml.getaddress (@xstruct, &quot;opml&quot;), &quot;head&quot;), adr)">
+																</outline>
+																<outline text="for adr in adratts">
+																	<outline text="if nameof (adr^) != &quot;text&quot;">
+																		<outline text="xml.addvalue (adrhead, nameof (adr^), adr^)">
+																		</outline>
+																	</outline>
+																</outline>
+															</outline>
+														</outline>
+														<outline text="local (adrbody = xml.opml.getbodyaddress (@xstruct))">
+														</outline>
+														<outline text="adrbody^ = adrnode^">
+														</outline>
+														<outline text="filetext = xml.decompile (@xstruct)">
+														</outline>
+														<outline text="filetext = nodeEditorSuite.fixBuggyXml (filetext) //9/12/16 by DW">
+														</outline>
+														<outline text="bundle //replace title -- 5/21/15 by DW -- if there's a title att, use it for the outline's title">
+															<outline text="local (adratts = @adrnode^.[&quot;/atts&quot;], title);">
+															</outline>
+															<outline text="if defined (adratts^.title)">
+																<outline text="title = adratts^.title">
+																</outline>
+															</outline>
+															<outline text="else">
+																<outline text="title = fname">
+																</outline>
+															</outline>
+															<outline text="filetext = string.replace (filetext, &quot;&amp;lt;%title%&gt;&quot;, title)">
+															</outline>
+														</outline>
+														<outline text="bundle //do other text replacements -- 7/11/15 by DW">
+															<outline text="local (t)">
+															</outline>
+															<outline text="new (tabletype, @t)">
+															</outline>
+															<outline text="t.now = string (clock.now ())">
+															</outline>
+															<outline text="t.programname = &quot;OPML Editor&quot;">
+															</outline>
+															<outline text="filetext = string.multiplereplaceall (filetext, @t, false, &quot;&lt;%&quot;, &quot;%&gt;&quot;)">
+															</outline>
+															<outline text="filetext = string.replace (filetext, &quot;&amp;lt;%dateModified%&gt;&quot;, date.netstandardstring (t.now))">
+															</outline>
+															<outline text="scratchpad.filetext = filetext">
+															</outline>
+														</outline>
+													</outline>
+													<outline text="else">
+														<outline text="if string.lower (fname) endswith &quot;.mdo&quot;">
+															<outline text="filetext = nodeEditorSuite.github.getMdoText (adrnode)">
+															</outline>
+															<outline text="fname = string.popsuffix (fname) + &quot;.md&quot;">
+															</outline>
+															<outline text="f = string.popsuffix (f) + &quot;.md&quot;">
+															</outline>
+														</outline>
+														<outline text="else">
+															<outline text="local (ctLineEnds = 1, flIndent = true)">
+															</outline>
+															<outline text="if string.lower (fname) endswith &quot;.md&quot;">
+																<outline text="ctLineEnds = 2">
+																</outline>
+																<outline text="flIndent = false">
+																</outline>
+															</outline>
+															<outline text="if string.lower (fname) endswith &quot;.js&quot;">
+																<outline text="scratchpad.codeNodes = adrnode^">
+																</outline>
+															</outline>
+															<outline text="html.directory.getRawHtml (adrnode, @filetext, false, ctLineEnds, adrdata^.prefs.lineEndChars, flIndent, flIncludeComments) //12/25/14 by DW -- ignore # directives">
+															</outline>
+															<outline text="scratchpad.fname = fname">
+															</outline>
+															<outline text="filetext = nodeEditorSuite.macroProcess (filetext) //double square brace reduction">
+															</outline>
+															<outline text="local (gloss, adr) //8/4/26 by CC -- a REAL copy of the suite glossary; the database table is never changed">
+															</outline>
+															<outline text="new (tabletype, @gloss)">
+															</outline>
+															<outline text="bundle //copy the suite glossary">
+																<outline text="for adr in @nodeEditorSuite.data.glossary">
+																	<outline text="gloss [nameof (adr^)] = adr^">
+																	</outline>
+																</outline>
+															</outline>
+															<outline text="bundle //add elements from project-specific glossary -- 6/20/14 by DW">
+																<outline text="local (adrparent = parentof (adrTopOutline^))">
+																</outline>
+																<outline text="if defined (adrparent^.glossary)">
+																	<outline text="local (ar)">
+																	</outline>
+																	<outline text="for adr in @adrparent^.glossary">
+																		<outline text="gloss [nameof (adr^)] = adr^">
+																		</outline>
+																	</outline>
+																</outline>
+															</outline>
+															<outline text="bundle //convert wp and op objects to strings">
+																<outline text="local (adr)">
+																</outline>
+																<outline text="for adr in @gloss">
+																	<outline text="if (typeof (adr^) == outlinetype) or (typeof (adr^) == wptexttype)">
+																		<outline text="local (s = string (adr^)) //4/25/18 by DW">
+																		</outline>
+																		<outline text="s = string.replaceall (s, &quot;\r&quot;, &quot;\n&quot;)">
+																		</outline>
+																		<outline text="table.assign (adr, s)">
+																		</outline>
+																	</outline>
+																</outline>
+															</outline>
+															<outline text="for adr in @gloss">
+																<outline text="if typeof (adr^) == outlinetype">
+																	<outline text="local (s = string.trimwhitespace (string (adr^)))">
+																	</outline>
+																	<outline text="s = string.replaceall (s, &quot;\t&quot;, &quot;&quot;)">
+																	</outline>
+																	<outline text="s = string.replaceall (s, &quot;\r&quot;, &quot;&quot;)">
+																	</outline>
+																	<outline text="s = string.replaceall (s, &quot;\n&quot;, &quot;&quot;)">
+																	</outline>
+																	<outline text="table.assign (adr, s)">
+																	</outline>
+																</outline>
+															</outline>
+															<outline text="filetext = string.multiplereplaceall (filetext, @gloss, false, &quot;&lt;%&quot;, &quot;%&gt;&quot;)">
+															</outline>
+															<outline text="if defined (worldoutlinesuite.processMacros) //8/4/26 by CC -- absent in this database; skipped">
+																<outline text="nodeEditorSuite.data.adrparent = adrparent //12/6/19 by DW">
+																</outline>
+																<outline text="filetext = worldoutlinesuite.processMacros (filetext, @nodeEditorSuite.macros) //&lt;%macros ()%&gt; -- 6/23/14 by DW">
+																</outline>
+															</outline>
+														</outline>
+													</outline>
+												</outline>
+												<outline text="file.surefilepath (f)">
+												</outline>
+												<outline text="if file.exists (f)">
+													<outline text="if string (file.readwholefile (f)) == filetext">
+														<outline text="flwrite = false">
+														</outline>
+													</outline>
+												</outline>
+												<outline text="if flwrite">
+													<outline text="local (type = nil)">
+													</outline>
+													<outline text="if fname endswith &quot;.js&quot;">
+														<outline text="type = &quot;text/javascript&quot;">
+														</outline>
+													</outline>
+													<outline text="writelocaltextfile (f, filetext)">
+													</outline>
+													<outline text="if adrdata^.prefs.flUploadToS3 and (not fldropbox) and (not flpublicfolder) and (not flgithub) and (not flfile) and (not flallservers) and flS3Upload">
+														<outline text="scratchpad.path = s3path + fname">
+														</outline>
+														<outline text="s3.newobject (s3path + fname, filetext, type)">
+														</outline>
+														<outline text="scratchpad.s3fname = s3path + fname">
+														</outline>
+													</outline>
+													<outline text="if flgithub //12/13/17 by DW">
+														<outline text="nodeEditorSuite.github.upload (s3path + fname, filetext)">
+														</outline>
+													</outline>
+													<outline text="adrdata^.stats.ctFileWrites++">
+													</outline>
+													<outline text="adrdata^.stats.whenLastFileWrite = clock.now ()">
+													</outline>
+													<outline text="adrdata^.stats.lastFileWritten = s3path + fname">
+													</outline>
+													<outline text="bundle //write  the opml for the file we just wrote">
+														<outline text="local (fopml = string.popsuffix (f) + &quot;.opml&quot;, xstructshell, adrstructbody)">
+														</outline>
+														<outline text="xstructshell = xml.compile (opmlshelltext) //8/4/26 by CC -- a fresh shell, not the shared table">
+														</outline>
+														<outline text="adrstructbody = xml.opml.getbodyaddress (@xstructshell)">
+														</outline>
+														<outline text="adrstructbody^ = adrnode^">
+														</outline>
+														<outline text="s = xml.decompile (@xstructshell)">
+														</outline>
+														<outline text="s = nodeEditorSuite.fixBuggyXml (s) //9/12/16 by DW">
+														</outline>
+														<outline text="s = string.replace (s, &quot;&amp;lt;%title%&gt;&quot;, &quot;&lt;%title%&gt;&quot;)">
+														</outline>
+														<outline text="s = string.replace (s, &quot;&amp;lt;%dateModified%&gt;&quot;, date.netstandardstring (clock.now ())) //3/17/22 by DW">
+														</outline>
+														<outline text="new (tabletype, @t)">
+														</outline>
+														<outline text="t.title = fname">
+														</outline>
+														<outline text="t.programname = frontier.getProgramName ()">
+														</outline>
+														<outline text="t.now = clock.now ()">
+														</outline>
+														<outline text="s = string.multiplereplaceall (s, @t, false, &quot;&lt;%&quot;, &quot;%&gt;&quot;)">
+														</outline>
+														<outline text="scratchpad.fopml = fopml">
+														</outline>
+														<outline text="writelocaltextfile (fopml, s)">
+														</outline>
+													</outline>
+												</outline>
+											</outline>
+										</outline>
+									</outline>
+								</outline>
+							</outline>
+						</outline>
+					</outline>
+				</outline>
+			</outline>
+			<outline text="bundle //call afterSave callback -- 6/20/14 by DW">
+				<outline text="if defined (adrparent^.callbacks)">
+					<outline text="if defined (adrparent^.callbacks.afterSave)">
+						<outline text="try {adrparent^.callbacks.afterSave ()}">
+						</outline>
+					</outline>
+				</outline>
+			</outline>
+			<outline text="scratchpad.buildscript = buildScript">
+			</outline>
+			<outline text="evaluate (buildScript) //1/16/15 by DW">
+			</outline>
+		</outline>
+		<outline text="bundle //test code">
+			<outline text="uploadScripts ()">
+			</outline>
+		</outline>
+		</body>
+	</opml>

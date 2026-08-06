@@ -1,0 +1,225 @@
+on uploadScripts (adrOutline=nil)
+	« Changes
+		« 8/4/26 by CC
+			« Adapted for trigger on marin. With an address -- uploadScripts (@system.temp.sallyreader) -- it builds that outline, the way Electric Drummer calls it. With no param it behaves as the desktop original (window.frontmost).
+			« The glossary and the opml shell are real copies here. The desktop script mutated its in-memory copies, which Frontier's copy-on-assign made safe; in this interpreter assignment binds a reference, so the copies are explicit and the database tables are never changed.
+			« worldoutlinesuite.processMacros is guarded -- it isn't in this database.
+			« The desktop original is preserved in trigger/uploadScriptsDesktopOriginal.opml.
+		« 7/18/23; 6:42:05 AM by DW
+			« Save objects to the Kansas folder in Dropbox.
+		« 2/4/22; 3:49:53 PM by DW
+			« With a glossary value flS3Upload you can turn off uploads of files to S3.
+		« 10/6/18; 9:51:17 AM by DW
+			« Allow comments to be included in generated text.
+		« 4/5/14; 9:57:27 PM by DW
+			« Created.
+	local (flExportToKansas = false) //7/18/23 by DW and turned off 3/21/25 by DW
+	local (flIncludeComments = false) //10/6/18 by DW
+	local (adrTopOutline = adrOutline) //8/4/26 by CC -- the outline to build: the caller's, or the frontmost window's
+	if not defined (adrTopOutline)
+		adrTopOutline = window.frontmost ()
+	bundle //set flIncludeComments -- 10/6/18 by DW
+		local (adrparent = parentof (adrTopOutline^))
+		try
+			flIncludeComments = boolean (adrparent^.glossary.flIncludeComments)
+	local (flS3Upload = true) //2/4/22 by DW
+	bundle //set flS3Upload
+		local (adrparent = parentof (adrTopOutline^))
+		try
+			flS3Upload = boolean (adrparent^.glossary.flS3Upload)
+	local (adrdata = nodeEditorSuite.init (), xstruct, buildScript)
+	local (adrparent = parentof (adrTopOutline^))
+	local (opmltext = op.outlinetoxml (adrTopOutline)) //6/20/14 by DW
+	if flExportToKansas //7/18/23 by DW
+		local (adrprojectdata = @adrparent^.data) //7/21/23 by DW
+		if not defined (adrprojectdata^)
+			new (tabletype, adrprojectdata)
+			adrprojectdata^.serialnum = 0
+		adrprojectdata^.whenLastUpdate = clock.now ()
+		local (serialnum = adrprojectdata^.serialnum++)
+		local (basefolder = nodeEditorSuite.getKansasProjectFolder (nameof (adrparent^)))
+		local (nameproject = nameof (adrparent^)) //new simpler version -- 7/19/23 by DW
+		local (f = basefolder + "code.fttb")
+		file.surefilepath (f)
+		export.sendObject (adrparent, f)
+		local (farchive = basefolder + "snapshots:" + string.padwithzeros (serialnum, 3) + ".fttb")
+		file.surefilepath (farchive)
+		export.sendObject (adrparent, farchive)
+	xml.compile (opmltext, @xstruct)
+	scratchpad.xstruct = xstruct
+	local (adrbody = xml.opml.getbodyaddress (@xstruct), adrnode)
+	local (opmlshelltext = xml.decompile (@nodeEditorSuite.data.opmlShellStruct)) //8/4/26 by CC -- each .opml file compiles a fresh shell from this text
+	on gettext (adrx)
+		return (string.trimwhitespace (xml.getattributevalue (adrx, "text")))
+	on iscomment (adrx)
+		local (adratt = @adrx^.["/atts"].isComment)
+		if defined (adratt^) and (adratt^ == "true")
+			return (true)
+		return (false)
+	on writelocaltextfile (f, s)
+		f = string.replaceall (f, "/", ":")
+		file.surefilepath (f)
+		scratchpad.f = f
+		file.writewholefile (f, s)
+	for adrpath in adrbody //first-level items contain paths
+		if nameof (adrpath^) endswith "outline"
+			if not iscomment (adrpath)
+				local (s3path = gettext (adrpath), fldropbox = false, flpublicfolder = false, flgithub = false, flfile = false, flallservers = false)
+				if string.lower (s3path) == "build script"
+					html.directory.getRawHtml (adrpath, @buildScript)
+				else
+					local (lowers3path = string.lower (s3path))
+					if lowers3path beginswith "file:" //11/10/18 by DW
+						flfile = true;
+						s3path = string.delete (s3path, 1, 5)
+					if lowers3path beginswith "dropbox:" //12/25/14 by DW
+						fldropbox = true;
+						s3path = string.delete (s3path, 1, 8)
+					if lowers3path beginswith "publicfolder:" //8/31/17 by DW
+						flpublicfolder = true;
+						s3path = string.delete (s3path, 1, 13)
+					if lowers3path beginswith "github:" //12/13/17 by DW
+						flgithub = true;
+						s3path = string.delete (s3path, 1, 7)
+					if lowers3path beginswith "allservers:" //6/12/20 by DW
+						flallservers = true;
+						s3path = string.delete (s3path, 1, 11)
+					for adrnode in adrpath
+						if nameof (adrnode^) endswith "outline"
+							if not iscomment (adrnode)
+								local (fname = string.lower (gettext (adrnode)))
+								if sizeof (fname) > 0
+									if string.lower (fname) == "build script"
+										html.directory.getRawHtml (adrnode, @buildScript)
+									else
+										local (myfolder = string.replaceall (s3path, "/", "-"))
+										if myfolder beginswith "-"
+											myfolder = string.delete (myfolder, 1, 1)
+										if myfolder endswith "-"
+											myfolder = string.delete (myfolder, sizeof (myfolder), 1)
+										local (f = adrdata^.prefs.folder + myfolder + file.getpathchar () + fname, filetext, flwrite = true)
+										if flfile //11/10/18 by DW
+											f = s3path + fname
+										if fldropbox //12/25/14 by DW
+											f = user.prefs.dropboxfolder + s3path + fname
+										if flpublicfolder //8/31/17 by DW
+											f = user.prefs.publicfolder + s3path + fname
+										if flgithub //12/13/17 by DW
+											f = adrdata^.prefs.github.folder + s3path + fname
+										if flallservers //6/12/20 by DW
+											f = nodeEditorSuite.getAllServersFolder () + s3path + fname
+										bundle //set filetext
+											if fname endswith ".opml"
+												local (xstruct = xml.compile (opmlshelltext)) //8/4/26 by CC -- a fresh shell, not the shared table
+												bundle //copy atts into <head> if present
+													local (adratts = @adrnode^.["/atts"])
+													if sizeof (adratts^) > 1
+														local (adrhead = xml.getaddress (xml.getaddress (@xstruct, "opml"), "head"), adr)
+														for adr in adratts
+															if nameof (adr^) != "text"
+																xml.addvalue (adrhead, nameof (adr^), adr^)
+												local (adrbody = xml.opml.getbodyaddress (@xstruct))
+												adrbody^ = adrnode^
+												filetext = xml.decompile (@xstruct)
+												filetext = nodeEditorSuite.fixBuggyXml (filetext) //9/12/16 by DW
+												bundle //replace title -- 5/21/15 by DW -- if there's a title att, use it for the outline's title
+													local (adratts = @adrnode^.["/atts"], title);
+													if defined (adratts^.title)
+														title = adratts^.title
+													else
+														title = fname
+													filetext = string.replace (filetext, "&lt;%title%>", title)
+												bundle //do other text replacements -- 7/11/15 by DW
+													local (t)
+													new (tabletype, @t)
+													t.now = string (clock.now ())
+													t.programname = "OPML Editor"
+													filetext = string.multiplereplaceall (filetext, @t, false, "<%", "%>")
+													filetext = string.replace (filetext, "&lt;%dateModified%>", date.netstandardstring (t.now))
+													scratchpad.filetext = filetext
+											else
+												if string.lower (fname) endswith ".mdo"
+													filetext = nodeEditorSuite.github.getMdoText (adrnode)
+													fname = string.popsuffix (fname) + ".md"
+													f = string.popsuffix (f) + ".md"
+												else
+													local (ctLineEnds = 1, flIndent = true)
+													if string.lower (fname) endswith ".md"
+														ctLineEnds = 2
+														flIndent = false
+													if string.lower (fname) endswith ".js"
+														scratchpad.codeNodes = adrnode^
+													html.directory.getRawHtml (adrnode, @filetext, false, ctLineEnds, adrdata^.prefs.lineEndChars, flIndent, flIncludeComments) //12/25/14 by DW -- ignore # directives
+													scratchpad.fname = fname
+													filetext = nodeEditorSuite.macroProcess (filetext) //double square brace reduction
+													local (gloss, adr) //8/4/26 by CC -- a REAL copy of the suite glossary; the database table is never changed
+													new (tabletype, @gloss)
+													bundle //copy the suite glossary
+														for adr in @nodeEditorSuite.data.glossary
+															gloss [nameof (adr^)] = adr^
+													bundle //add elements from project-specific glossary -- 6/20/14 by DW
+														local (adrparent = parentof (adrTopOutline^))
+														if defined (adrparent^.glossary)
+															local (ar)
+															for adr in @adrparent^.glossary
+																gloss [nameof (adr^)] = adr^
+													bundle //convert wp and op objects to strings
+														local (adr)
+														for adr in @gloss
+															if (typeof (adr^) == outlinetype) or (typeof (adr^) == wptexttype)
+																local (s = string (adr^)) //4/25/18 by DW
+																s = string.replaceall (s, "\r", "\n")
+																table.assign (adr, s)
+													for adr in @gloss
+														if typeof (adr^) == outlinetype
+															local (s = string.trimwhitespace (string (adr^)))
+															s = string.replaceall (s, "\t", "")
+															s = string.replaceall (s, "\r", "")
+															s = string.replaceall (s, "\n", "")
+															table.assign (adr, s)
+													filetext = string.multiplereplaceall (filetext, @gloss, false, "<%", "%>")
+													if defined (worldoutlinesuite.processMacros) //8/4/26 by CC -- absent in this database; skipped
+														nodeEditorSuite.data.adrparent = adrparent //12/6/19 by DW
+														filetext = worldoutlinesuite.processMacros (filetext, @nodeEditorSuite.macros) //<%macros ()%> -- 6/23/14 by DW
+										file.surefilepath (f)
+										if file.exists (f)
+											if string (file.readwholefile (f)) == filetext
+												flwrite = false
+										if flwrite
+											local (type = nil)
+											if fname endswith ".js"
+												type = "text/javascript"
+											writelocaltextfile (f, filetext)
+											if adrdata^.prefs.flUploadToS3 and (not fldropbox) and (not flpublicfolder) and (not flgithub) and (not flfile) and (not flallservers) and flS3Upload
+												scratchpad.path = s3path + fname
+												s3.newobject (s3path + fname, filetext, type)
+												scratchpad.s3fname = s3path + fname
+											if flgithub //12/13/17 by DW
+												nodeEditorSuite.github.upload (s3path + fname, filetext)
+											adrdata^.stats.ctFileWrites++
+											adrdata^.stats.whenLastFileWrite = clock.now ()
+											adrdata^.stats.lastFileWritten = s3path + fname
+											bundle //write  the opml for the file we just wrote
+												local (fopml = string.popsuffix (f) + ".opml", xstructshell, adrstructbody)
+												xstructshell = xml.compile (opmlshelltext) //8/4/26 by CC -- a fresh shell, not the shared table
+												adrstructbody = xml.opml.getbodyaddress (@xstructshell)
+												adrstructbody^ = adrnode^
+												s = xml.decompile (@xstructshell)
+												s = nodeEditorSuite.fixBuggyXml (s) //9/12/16 by DW
+												s = string.replace (s, "&lt;%title%>", "<%title%>")
+												s = string.replace (s, "&lt;%dateModified%>", date.netstandardstring (clock.now ())) //3/17/22 by DW
+												new (tabletype, @t)
+												t.title = fname
+												t.programname = frontier.getProgramName ()
+												t.now = clock.now ()
+												s = string.multiplereplaceall (s, @t, false, "<%", "%>")
+												scratchpad.fopml = fopml
+												writelocaltextfile (fopml, s)
+	bundle //call afterSave callback -- 6/20/14 by DW
+		if defined (adrparent^.callbacks)
+			if defined (adrparent^.callbacks.afterSave)
+				try {adrparent^.callbacks.afterSave ()}
+	scratchpad.buildscript = buildScript
+	evaluate (buildScript) //1/16/15 by DW
+bundle //test code
+	uploadScripts ()

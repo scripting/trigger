@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+	<head>
+		<title>downloadObject</title>
+		</head>
+	<body>
+		<outline text="on downloadObject (adrSource, adrDest)">
+			<outline text="Changes" isComment="true">
+				<outline text="8/3/26 by CC">
+					<outline text="Get a script from trigger.usertalk.org over https, install it at adrDest here."/>
+					<outline text="The server sends the script's source text base64-encoded; script.newScriptObject rebuilds it."/>
+					</outline>
+				</outline>
+			<outline text="local (username = &quot;dave&quot;)"/>
+			<outline text="local (password = user.prefs.usertalkPassword)"/>
+			<outline text="local (xmltext = &quot;&quot;)"/>
+			<outline text="on add (s)">
+				<outline text="xmltext = xmltext + s + &quot;\r&quot;"/>
+				</outline>
+			<outline text="on encode (s)">
+				<outline text="s = string.replaceAll (s, &quot;&amp;&quot;, &quot;&amp;amp;&quot;)"/>
+				<outline text="s = string.replaceAll (s, &quot;&lt;&quot;, &quot;&amp;lt;&quot;)"/>
+				<outline text="s = string.replaceAll (s, &quot;&gt;&quot;, &quot;&amp;gt;&quot;)"/>
+				<outline text="return (s)"/>
+				</outline>
+			<outline text="on addParam (s)">
+				<outline text="add (&quot;&lt;param&gt;&lt;value&gt;&lt;string&gt;&quot; + encode (s) + &quot;&lt;/string&gt;&lt;/value&gt;&lt;/param&gt;&quot;)"/>
+				</outline>
+			<outline text="bundle //build the call">
+				<outline text="add (&quot;&lt;?xml version=\&quot;1.0\&quot;?&gt;&quot;)"/>
+				<outline text="add (&quot;&lt;methodCall&gt;&quot;)"/>
+				<outline text="add (&quot;&lt;methodName&gt;webEdit.getFromServer&lt;/methodName&gt;&quot;)"/>
+				<outline text="add (&quot;&lt;params&gt;&quot;)"/>
+				<outline text="addParam (username)"/>
+				<outline text="addParam (password)"/>
+				<outline text="addParam (string (adrSource))"/>
+				<outline text="add (&quot;&lt;/params&gt;&quot;)"/>
+				<outline text="add (&quot;&lt;/methodCall&gt;&quot;)"/>
+				</outline>
+			<outline text="local (responseText = tcp.httpsClient (method: &quot;POST&quot;, server: &quot;trigger.usertalk.org&quot;, path: &quot;/RPC2&quot;, data: xmltext, datatype: &quot;text/xml&quot;))"/>
+			<outline text="local (payload = &quot;&quot;)"/>
+			<outline text="bundle //pull the payload out of the first &lt;string&gt; in the response">
+				<outline text="local (ix = string.patternMatch (&quot;&lt;string&gt;&quot;, responseText))"/>
+				<outline text="if ix &gt; 0">
+					<outline text="local (rest = string.delete (responseText, 1, ix + 7))"/>
+					<outline text="ix = string.patternMatch (&quot;&lt;/string&gt;&quot;, rest)"/>
+					<outline text="if ix &gt; 0">
+						<outline text="payload = string.mid (rest, 1, ix - 1)"/>
+						</outline>
+					</outline>
+				</outline>
+			<outline text="bundle //a fault is an error message -- show it, don't install it">
+				<outline text="if string.patternMatch (&quot;&lt;fault&gt;&quot;, responseText) &gt; 0">
+					<outline text="if payload != &quot;&quot;">
+						<outline text="return (payload)"/>
+						</outline>
+					<outline text="return (responseText)"/>
+					</outline>
+				</outline>
+			<outline text="bundle //anything that isn't an XML-RPC answer gets shown, not installed">
+				<outline text="if string.patternMatch (&quot;&lt;methodResponse&gt;&quot;, responseText) == 0">
+					<outline text="return (responseText)"/>
+					</outline>
+				<outline text="if payload == &quot;&quot;">
+					<outline text="return (responseText)"/>
+					</outline>
+				</outline>
+			<outline text="local (theBytes = base64.decode (payload))"/>
+			<outline text="setBinaryType (@theBytes, string4 (&quot;TEXT&quot;)) //an untyped binary stringifies as noise"/>
+			<outline text="script.newScriptObject (string (theBytes), adrDest)"/>
+			<outline text="return (string (adrSource) + &quot; installed at &quot; + adrDest)"/>
+			</outline>
+		<outline text="bundle //test code">
+			<outline text="dialog.alert (downloadObject (@system.temp.examplescript, @workspace.downloadtest))"/>
+			</outline>
+		</body>
+	</opml>

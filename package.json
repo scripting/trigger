@@ -1,0 +1,13 @@
+{
+	"name": "trigger",
+	"version": "0.5.0",
+	"description": "Ship a UserTalk script to a server, run it there, get the value back.",
+	"main": "trigger.js",
+	"author": "Dave Winer",
+	"license": "MIT",
+	"dependencies": {
+		"better-sqlite3": "11.10.0",
+		"davexmlrpc": "0.5.0",
+		"xml2js": "0.6.2"
+	}
+}
