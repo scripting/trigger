@@ -23,6 +23,23 @@ body {
 	border-bottom: 1px solid silver;
 	}
 
+.divButtonBar {
+	padding: 8px 12px;
+	border-bottom: 1px solid silver;
+	background-color: #fafafa;
+	}
+
+.buttonSave {
+	font-size: 13px;
+	padding: 3px 14px;
+	}
+
+.spanStatus {
+	margin-left: 14px;
+	font-size: 13px;
+	color: #555555;
+	}
+
 .divColumnHeads {
 	position: relative;
 	font-weight: bold;
@@ -58,7 +75,7 @@ body {
 	position: relative;
 	}
 
-#divOutliner .concord-text {
+.divWindow.browseColumns #divOutliner .concord-text { /*only the browse window truncates names -- styleColumns sets the live width*/
 	max-width: 380px;
 	overflow: hidden;
 	white-space: nowrap;

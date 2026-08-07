@@ -1,5 +1,3 @@
-var thePassword; //assigned by getPassword, at startup
-
 $(document).ready (function () {
 	getPassword ();
 	$("#divOutliner").concord ({
@@ -14,75 +12,41 @@ $(document).ready (function () {
 			opExpand: expandCallback
 			}
 		});
+	$("#divOutliner").on ("dblclick", ".concord-node", function (event) {
+		if ($(event.target).closest (".concord-node") [0] !== this) { //bubbling -- only the innermost row counts
+			return;
+			}
+		const attributes = $(this).data ("attributes");
+		if ((attributes !== undefined) && ((attributes.kind === "script") || (attributes.kind === "outline"))) {
+			event.stopPropagation ();
+			window.open ("script.html?address=" + encodeURIComponent (addressForNode ($(this))), "_blank");
+			}
+		});
 	loadTopLevel ();
 	});
 
-function getPassword () {
-	thePassword = localStorage.getItem ("odbBrowserPassword");
-	if ((thePassword === null) || (thePassword.length === 0)) {
-		thePassword = prompt ("What's the password for the odb server?");
-		if (thePassword === null) {
-			thePassword = "";
-			}
-		else {
-			localStorage.setItem ("odbBrowserPassword", thePassword);
-			}
-		}
-	}
-
-function serverCall (path, params, callback) { //the one transport primitive -- GET, JSON comes back
-	var theUrl = path;
-	var theQuery = "";
-	Object.keys (params).forEach (function (name) {
-		if (params [name] !== undefined) {
-			if (theQuery.length > 0) {
-				theQuery += "&";
-				}
-			theQuery += name + "=" + encodeURIComponent (params [name]);
-			}
-		});
-	if (theQuery.length > 0) {
-		theUrl += "?" + theQuery;
-		}
-	$.ajax ({
-		url: theUrl,
-		headers: {"x-trigger-password": thePassword},
-		dataType: "json",
-		success: function (data) {
-			callback (undefined, data);
-			},
-		error: function (xhr) {
-			var err;
-			try {
-				err = JSON.parse (xhr.responseText);
-				}
-			catch (parseError) {
-				err = {message: "Can't reach the odb server. The status was " + xhr.status + "."};
-				}
-			if (xhr.status === 401) { //a wrong saved password would lock the page forever -- forget it so the next visit asks again
-				localStorage.removeItem ("odbBrowserPassword");
-				}
-			callback (err);
-			}
-		});
-	}
-
 function getTableEntries (theId, callback) { //theId undefined means the top level
-	serverCall ("/listtable", {id: theId}, callback);
+	serverCall ("/listtable", {id: theId}, "GET", callback);
 	}
 
-function xmlEscape (theText) {
-	return (String (theText)
-		.split ("&").join ("&amp;")
-		.split ("<").join ("&lt;")
-		.split (">").join ("&gt;")
-		.split ("\"").join ("&quot;"));
+function addressForNode (theNode) { //walk up the outline collecting names -- the dotted address of the row
+	const segments = [];
+	var current = theNode;
+	while (current.length > 0) {
+		const attributes = current.data ("attributes");
+		if ((attributes === undefined) || (attributes.name === undefined)) {
+			break;
+			}
+		segments.unshift (attributes.name);
+		current = current.parent ().closest (".concord-node");
+		}
+	return (segments.join ("."));
 	}
 
 function opmlForEntries (entries) { //each entry becomes one line; a table gets a placeholder child so it shows a wedge
 	var theBody = "";
 	entries.forEach (function (entry) {
-		var attributes = "text=\"" + xmlEscape (entry.name) + "\" value=\"" + xmlEscape (entry.value) + "\" kind=\"" + xmlEscape (entry.kind) + "\"";
+		var attributes = "text=\"" + xmlEscape (entry.name) + "\" name=\"" + xmlEscape (entry.name) + "\" value=\"" + xmlEscape (entry.value) + "\" kind=\"" + xmlEscape (entry.kind) + "\"";
 		if (entry.flTable === true) {
 			attributes += " tableid=\"" + entry.id + "\" loaded=\"false\"";
 			theBody += "<outline " + attributes + "><outline text=\"loading…\"/></outline>"; //horizontal ellipsis

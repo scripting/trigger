@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>the odb</title>
+		<title>script</title>
 		<script src="concord/libraries/jquery-1.9.1.min.js"></script>
 		<link href="concord/libraries/bootstrap.css" rel="stylesheet">
 		<script src="concord/libraries/bootstrap.min.js"></script>
@@ -11,15 +11,15 @@
 		<link rel="stylesheet" href="concord/concordstyles.css">
 		<script src="concord/concord.js"></script>
 		<link rel="stylesheet" href="odbbrowser.css">
-		<style id="styleColumns"></style>
 		<script src="common.js"></script>
-		<script src="odbbrowser.js"></script>
+		<script src="script.js"></script>
 		</head>
 	<body>
-		<div class="divWindow browseColumns">
-			<div class="divWindowTitle">odb.db</div>
-			<div class="divColumnHeads">
-				<span class="spanHeadName">Name</span><span class="spanHeadValue">Value</span><span class="spanHeadKind">Kind</span>
+		<div class="divWindow">
+			<div class="divWindowTitle">script</div>
+			<div class="divButtonBar">
+				<button id="buttonSave" class="buttonSave">Save</button>
+				<span id="spanStatus" class="spanStatus"></span>
 				</div>
 			<div class="divOutlinerContainer">
 				<div id="divOutliner">
