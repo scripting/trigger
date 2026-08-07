@@ -1,9 +1,10 @@
 {
 	"port": 1680,
-	"password": "testonly",
+	"password": "readtest",
 	"pathUsertalk": "../usertalk",
 	"pathDatabase": "data/nodeeditor.db",
 	"maxVerbCalls": 1000000,
 	"flLogRequests": true,
-	"pathConcord": "../concord"
-	}
+	"pathConcord": "../concord",
+	"webeditPassword": "testonly"
+}

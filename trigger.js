@@ -644,21 +644,29 @@ var selectListerChildren, selectListerRow, countListerChildren; //assigned by st
 			}
 		return (urlParam (theUrl, "password"));
 		}
-	function requestIsAuthorized (theRequest, theUrl) {
+	function requestIsAuthorized (theRequest, theUrl, flNeedsWrite) {
 
-		/*  Either password opens these calls. The webedit password already
-			reads and writes every script in the database, so running a script
-			is not more privilege -- and it's the one DW has, which is what
-			Electric Drummer needs. 8/4/26 by CC.  */
+		/*  8/7/26 by CC -- the two passwords have different permissions, per
+			DW's 8/6 instruction. The webedit password (DW's -- the one
+			Electric Drummer sends) opens everything. The run password (the
+			one Claude holds) opens the read calls only: downloadobject and
+			listtable. Run, upload and dialog answers refuse it. The point is
+			a lock, not a promise: once DW rotates the values on the server,
+			Claude's password cannot change the database, whatever Claude
+			does. An empty password in config.json locks the server, it
+			doesn't open it.  */
 
 		const thePassword = passwordFromRequest (theRequest, theUrl);
 		if (thePassword === undefined) {
 			return (false);
 			}
-		if ((config.password.length > 0) && (thePassword === config.password)) { //an empty password in config.json locks the server, it doesn't open it
+		if ((config.webeditPassword.length > 0) && (thePassword === config.webeditPassword)) {
 			return (true);
 			}
-		if ((config.webeditPassword.length > 0) && (thePassword === config.webeditPassword)) {
+		if ((config.password.length > 0) && (thePassword === config.password)) {
+			if (flNeedsWrite === true) {
+				return (false);
+				}
 			return (true);
 			}
 		return (false);
@@ -1130,8 +1138,8 @@ var selectListerChildren, selectListerRow, countListerChildren; //assigned by st
 					}
 				break;
 			case "/run":
-				if (!requestIsAuthorized (theRequest, theUrl)) {
-					returnError (theResponse, 401, "Can't run the script because the password is missing or wrong.");
+				if (!requestIsAuthorized (theRequest, theUrl, true)) {
+					returnError (theResponse, 401, "Can't run the script because the password is missing, wrong, or doesn't have the power to run scripts.");
 					}
 				else {
 					const flInteractive = theUrl.searchParams.has ("interactive"); //8/7/26 by CC -- dialogs allowed; the script runs on a worker thread
@@ -1164,8 +1172,8 @@ var selectListerChildren, selectListerRow, countListerChildren; //assigned by st
 					}
 				break;
 			case "/uploadobject":
-				if (!requestIsAuthorized (theRequest, theUrl)) {
-					returnError (theResponse, 401, "Can't upload the object because the password is missing or wrong.");
+				if (!requestIsAuthorized (theRequest, theUrl, true)) {
+					returnError (theResponse, 401, "Can't upload the object because the password is missing, wrong, or doesn't have the power to write.");
 					}
 				else {
 					if (theRequest.method === "POST") {
@@ -1179,8 +1187,8 @@ var selectListerChildren, selectListerRow, countListerChildren; //assigned by st
 					}
 				break;
 			case "/dialoganswer": //8/7/26 by CC -- the person answered; wake the script that's waiting
-				if (!requestIsAuthorized (theRequest, theUrl)) {
-					returnError (theResponse, 401, "Can't deliver the answer because the password is missing or wrong.");
+				if (!requestIsAuthorized (theRequest, theUrl, true)) {
+					returnError (theResponse, 401, "Can't deliver the answer because the password is missing, wrong, or doesn't have the power to run scripts.");
 					}
 				else {
 					if (theRequest.method === "POST") {
