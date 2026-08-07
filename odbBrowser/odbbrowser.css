@@ -29,15 +29,44 @@ body {
 	background-color: #fafafa;
 	}
 
-.buttonSave {
+.buttonBar {
 	font-size: 13px;
 	padding: 3px 14px;
+	margin-right: 6px;
+	}
+
+.spanDirty {
+	margin-left: 8px;
+	font-size: 13px;
+	color: #aa4400;
 	}
 
 .spanStatus {
 	margin-left: 14px;
 	font-size: 13px;
 	color: #555555;
+	}
+
+.divPasswordEntry {
+	max-width: 420px;
+	margin: 120px auto;
+	padding: 24px;
+	background-color: white;
+	border: 1px solid silver;
+	border-radius: 6px;
+	text-align: center;
+	}
+
+.inputPassword {
+	font-size: 14px;
+	padding: 4px 8px;
+	width: 240px;
+	}
+
+.buttonConnect {
+	font-size: 14px;
+	padding: 4px 14px;
+	margin-left: 8px;
 	}
 
 .divColumnHeads {

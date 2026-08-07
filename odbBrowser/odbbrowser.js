@@ -1,5 +1,7 @@
 $(document).ready (function () {
-	getPassword ();
+	if (!getPassword ()) { //the password form is on screen -- the page starts over after Connect
+		return;
+		}
 	$("#divOutliner").concord ({
 		prefs: {
 			outlineFont: "Lucida Grande",
@@ -9,8 +11,16 @@ $(document).ready (function () {
 			readonly: true
 			},
 		callbacks: {
-			opExpand: expandCallback
+			opExpand: expandCallback,
+			opCollapse: collapseCallback
 			}
+		});
+	$(".divOutlinerContainer").scroll (function () {
+		clearTimeout (theScrollTimer);
+		theScrollTimer = setTimeout (function () {
+			theState.scrollTop = $(".divOutlinerContainer").scrollTop ();
+			writeState ();
+			}, 400);
 		});
 	/*  The open-a-script double-click listens in the capture phase, because
 		Concord's own read-only handler stops double-clicks on the name text
@@ -145,6 +155,69 @@ function showError (err) {
 	alert (err.message);
 	}
 
+//window state -- what was expanded and where the scroll was, so the window comes back the way it was left
+	var theScrollTimer; //assigned by the scroll handler
+	const stateKey = "odbBrowserState";
+	var theState = readState ();
+	function readState () {
+		try {
+			const jstruct = JSON.parse (localStorage.getItem (stateKey));
+			if ((jstruct !== null) && (Array.isArray (jstruct.expandedIds))) {
+				return (jstruct);
+				}
+			}
+		catch (err) {
+			}
+		return ({expandedIds: [], scrollTop: 0});
+		}
+	function writeState () {
+		localStorage.setItem (stateKey, JSON.stringify (theState));
+		}
+	function recordExpanded (theId) {
+		if (theState.expandedIds.indexOf (theId) === -1) {
+			theState.expandedIds.push (theId);
+			writeState ();
+			}
+		}
+	function recordCollapsed (theId) {
+		const ix = theState.expandedIds.indexOf (theId);
+		if (ix !== -1) {
+			theState.expandedIds.splice (ix, 1);
+			writeState ();
+			}
+		}
+	function findNodeByTableId (theId) {
+		const theNodes = $("#divOutliner .concord-node").filter (function () {
+			const attributes = $(this).data ("attributes");
+			return ((attributes !== undefined) && (attributes.tableid === theId));
+			});
+		return ((theNodes.length > 0) ? theNodes.first () : undefined);
+		}
+	function restoreExpansions (ix, missingIds) {
+		if (ix >= theState.expandedIds.length) {
+			missingIds.forEach (recordCollapsed); //tables that no longer exist fall out of the state
+			$(".divOutlinerContainer").scrollTop (theState.scrollTop);
+			return;
+			}
+		const theId = theState.expandedIds [ix];
+		const theNode = findNodeByTableId (theId);
+		if (theNode === undefined) {
+			missingIds.push (theId);
+			restoreExpansions (ix + 1, missingIds);
+			}
+		else {
+			if (theNode.data ("attributes").loaded === "true") {
+				theNode.removeClass ("collapsed");
+				restoreExpansions (ix + 1, missingIds);
+				}
+			else {
+				loadTableChildren (theNode, function () {
+					restoreExpansions (ix + 1, missingIds);
+					});
+				}
+			}
+		}
+
 function loadTopLevel () {
 	getTableEntries (undefined, function (err, data) {
 		if (err !== undefined) {
@@ -153,16 +226,13 @@ function loadTopLevel () {
 		else {
 			concordOp ().xmlToOutline (opmlForEntries (data.entries), false);
 			decorateRows ();
+			restoreExpansions (0, []);
 			}
 		});
 	}
 
-function expandCallback (op) { //the first expand of a table fetches its entries and swaps out the placeholder
-	const theNode = op.getCursor ();
+function loadTableChildren (theNode, callback) { //fetch a table's entries and swap out the placeholder
 	const attributes = theNode.data ("attributes");
-	if ((attributes === undefined) || (attributes.kind !== "table") || (attributes.loaded === "true")) {
-		return;
-		}
 	attributes.loaded = "true";
 	getTableEntries (attributes.tableid, function (err, data) {
 		const theOp = concordOp ();
@@ -170,7 +240,9 @@ function expandCallback (op) { //the first expand of a table fetches its entries
 		theOp.deleteSubs ();
 		if (err !== undefined) {
 			attributes.loaded = "false"; //so the next expand tries again
-			showError (err);
+			if (callback === undefined) {
+				showError (err);
+				}
 			}
 		else {
 			if (data.entries.length > 0) {
@@ -179,5 +251,28 @@ function expandCallback (op) { //the first expand of a table fetches its entries
 				decorateRows ();
 				}
 			}
+		if (callback !== undefined) {
+			callback (err);
+			}
 		});
+	}
+
+function expandCallback (op) {
+	const theNode = op.getCursor ();
+	const attributes = theNode.data ("attributes");
+	if ((attributes === undefined) || (attributes.kind !== "table")) {
+		return;
+		}
+	recordExpanded (attributes.tableid);
+	if (attributes.loaded !== "true") {
+		loadTableChildren (theNode);
+		}
+	}
+
+function collapseCallback (op) {
+	const theNode = op.getCursor ();
+	const attributes = theNode.data ("attributes");
+	if ((attributes !== undefined) && (attributes.kind === "table")) {
+		recordCollapsed (attributes.tableid);
+		}
 	}

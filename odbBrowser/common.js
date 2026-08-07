@@ -1,16 +1,34 @@
 var thePassword; //assigned by getPassword, at startup
 
-function getPassword () {
+function getPassword () { //true if we have one; false means an entry form is on screen and the page should wait
+
+	/*  Not prompt () -- Electron doesn't support it, and neither do some
+		embedded browsers. A small form in the page works everywhere.  */
+
 	thePassword = localStorage.getItem ("odbBrowserPassword");
-	if ((thePassword === null) || (thePassword.length === 0)) {
-		thePassword = prompt ("What's the password for the odb server?");
-		if (thePassword === null) {
-			thePassword = "";
-			}
-		else {
-			localStorage.setItem ("odbBrowserPassword", thePassword);
+	if ((thePassword !== null) && (thePassword.length > 0)) {
+		return (true);
+		}
+	const divEntry = $("<div class=\"divPasswordEntry\"></div>");
+	const inputPassword = $("<input type=\"password\" class=\"inputPassword\" placeholder=\"Password for the odb server\">");
+	const buttonConnect = $("<button class=\"buttonConnect\">Connect</button>");
+	function connect () {
+		const theValue = inputPassword.val ();
+		if (theValue.length > 0) {
+			localStorage.setItem ("odbBrowserPassword", theValue);
+			window.location.reload ();
 			}
 		}
+	buttonConnect.click (connect);
+	inputPassword.keydown (function (event) {
+		if (event.which === 13) { //return key
+			connect ();
+			}
+		});
+	divEntry.append (inputPassword).append (buttonConnect);
+	$("body").prepend (divEntry);
+	inputPassword.focus ();
+	return (false);
 	}
 
 function serverCall (path, params, method, callback) { //the one transport primitive -- JSON comes back
