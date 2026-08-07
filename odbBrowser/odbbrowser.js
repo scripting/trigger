@@ -98,13 +98,21 @@ function concordOp () {
 	return ($("#divOutliner").concord ().op);
 	}
 
-const leftValueColumn = 422, leftKindColumn = 732; //where the columns sit, measured from the left edge of the outline
+function columnGeometry () { //where the columns sit, as a share of however wide the window is right now
+	const widthOutliner = $("#divOutliner").width ();
+	return ({
+		leftValue: Math.round (widthOutliner * 0.44),
+		leftKind: Math.round (widthOutliner * 0.76),
+		widthOutliner
+		});
+	}
 
 function decorateRows () { //the value and kind columns -- each row gets two spans, from the attributes its OPML carried
 
 	/*  The spans live inside each row's wrapper, which moves right as the
-		outline indents -- so each one gets an inline left that subtracts its
-		own row's indent, keeping the columns straight at any depth.  */
+		outline indents -- so each one remembers its own row's indent, and
+		applyColumnGeometry subtracts it, keeping the columns straight at
+		any depth and any window width.  */
 
 	const leftOutliner = $("#divOutliner").offset ().left;
 	$("#divOutliner .concord-node").each (function () {
@@ -116,15 +124,39 @@ function decorateRows () { //the value and kind columns -- each row gets two spa
 				}
 			const attributes = theNode.data ("attributes");
 			if ((attributes !== undefined) && (attributes.kind !== undefined)) {
-				const indent = theWrapper.offset ().left - leftOutliner;
-				const spanValue = $("<span class=\"spanValue\"></span>").text (attributes.value).css ("left", (leftValueColumn - indent) + "px");
-				const spanKind = $("<span class=\"spanKind\"></span>").text (attributes.kind).css ("left", (leftKindColumn - indent) + "px");
-				theWrapper.append (spanValue).append (spanKind);
+				theNode.data ("colIndent", theWrapper.offset ().left - leftOutliner);
+				theWrapper.append ($("<span class=\"spanValue\"></span>").text (attributes.value));
+				theWrapper.append ($("<span class=\"spanKind\"></span>").text (attributes.kind));
 				}
 			}
 		});
+	applyColumnGeometry ();
+	}
+
+function applyColumnGeometry () { //position every row's spans for the current window width
+	const geometry = columnGeometry ();
+	$("#divOutliner .concord-node").each (function () {
+		const theNode = $(this);
+		const indent = theNode.data ("colIndent");
+		if (indent !== undefined) {
+			const theWrapper = theNode.children (".concord-wrapper");
+			theWrapper.children (".spanValue").css ({
+				left: (geometry.leftValue - indent) + "px",
+				width: (geometry.leftKind - geometry.leftValue - 24) + "px"
+				});
+			theWrapper.children (".spanKind").css ({
+				left: (geometry.leftKind - indent) + "px",
+				width: (geometry.widthOutliner - geometry.leftKind - 20) + "px"
+				});
+			}
+		});
+	$("#styleColumns").text ("#divOutliner .concord-text { max-width: " + (geometry.leftValue - 60) + "px; }");
 	alignColumnHeads ();
 	}
+
+$(window).resize (function () {
+	applyColumnGeometry ();
+	});
 
 function alignColumnHeads () { //the header labels line up over wherever the columns actually landed
 	const firstValue = $("#divOutliner .spanValue:first");
