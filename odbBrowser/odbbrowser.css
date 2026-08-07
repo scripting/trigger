@@ -1,0 +1,90 @@
+body {
+	font-family: "Lucida Grande", "Helvetica Neue", sans-serif;
+	background-color: whitesmoke;
+	margin: 0;
+	}
+
+.divWindow {
+	max-width: 1000px;
+	margin: 30px auto;
+	background-color: white;
+	border: 1px solid silver;
+	border-radius: 6px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	overflow: hidden;
+	}
+
+.divWindowTitle {
+	text-align: center;
+	font-size: 13px;
+	color: #555555;
+	padding: 6px;
+	background-color: #f0f0f0;
+	border-bottom: 1px solid silver;
+	}
+
+.divColumnHeads {
+	position: relative;
+	font-weight: bold;
+	font-size: 14px;
+	padding: 8px 6px 6px 40px;
+	border-bottom: 1px solid black;
+	}
+
+.spanHeadName {
+	text-decoration: underline;
+	}
+
+.spanHeadValue {
+	position: absolute;
+	left: 430px;
+	text-decoration: underline;
+	}
+
+.spanHeadKind {
+	position: absolute;
+	left: 740px;
+	text-decoration: underline;
+	}
+
+.divOutlinerContainer {
+	min-height: 500px;
+	max-height: 80vh;
+	overflow: auto;
+	padding: 8px;
+	}
+
+#divOutliner {
+	position: relative;
+	}
+
+#divOutliner .concord-text {
+	max-width: 380px;
+	overflow: hidden;
+	white-space: nowrap;
+	}
+
+#divOutliner .spanValue {
+	position: absolute;
+	left: 422px;
+	width: 296px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	border-left: 1px dotted #aaaaaa;
+	padding-left: 10px;
+	font-size: 14px;
+	color: #333333;
+	}
+
+#divOutliner .spanKind {
+	position: absolute;
+	left: 732px;
+	width: 200px;
+	white-space: nowrap;
+	overflow: hidden;
+	border-left: 1px dotted #aaaaaa;
+	padding-left: 10px;
+	font-size: 14px;
+	color: #333333;
+	}

@@ -1,4 +1,4 @@
-const myProductName = "trigger", myVersion = "0.5.0"; //7/29/26 by CC -- ship a UserTalk script to a server, run it there, get the value back; named by DW
+const myProductName = "trigger", myVersion = "0.5.1"; //7/29/26 by CC -- ship a UserTalk script to a server, run it there, get the value back; named by DW
 
 const http = require ("http");
 const fs = require ("fs");
@@ -21,7 +21,8 @@ const config = { //defaults -- config.json wins, and PORT from the environment w
 	webeditPassword: "",
 	maxWebeditBytes: 10000000, //a guard the security review required; the biggest object in the suite is far under 1MB
 	folderWebeditReceived: "webeditReceived",
-	maxSavedBlobs: 100
+	maxSavedBlobs: 100,
+	pathConcord: "concord" //8/7/26 by CC -- the odb browser page loads the Concord outliner from this folder
 	};
 
 if (fs.existsSync (pathConfig)) {
@@ -37,6 +38,8 @@ if (process.env.PORT !== undefined) { //PagePark hands the port to the app this 
 
 const folderUsertalk = pathTool.resolve (__dirname, config.pathUsertalk);
 const pathDatabase = pathTool.resolve (__dirname, config.pathDatabase);
+const folderConcord = pathTool.resolve (__dirname, config.pathConcord);
+const folderOdbBrowser = pathTool.join (__dirname, "odbBrowser");
 
 const parse = require (folderUsertalk + "/code/parse.js");
 const evaluate = require (folderUsertalk + "/code/evaluate.js");
@@ -49,6 +52,7 @@ const odbSql = require (folderUsertalk + "/code/odbSql.js");
 const versionUsertalk = JSON.parse (fs.readFileSync (folderUsertalk + "/package.json", "utf8")).version;
 
 var theStore; //assigned by startup, holds the open database
+var selectListerChildren, selectListerRow, countListerChildren; //assigned by startup -- read-only statements for the odb browser's listing endpoint
 
 //the script that came in
 	function unescapeXml (theString) {
@@ -790,6 +794,186 @@ var theStore; //assigned by startup, holds the open database
 			returnError (theResponse, 500, "Can't upload " + theAddressString + " because " + err.message);
 			}
 		}
+	function summaryForRow (theRow) { //8/7/26 by CC -- one line of the odb browser: what goes in the value and kind columns
+
+		/*  Works straight off the database row, so a table full of big values
+			costs one query per entry, never a decode of the values themselves.
+			The 8/4 performance lesson: never walk more of the database than
+			the answer needs.  */
+
+		function truncate (theText) {
+			const oneLine = String (theText).replace (/\s+/g, " ");
+			if (oneLine.length > 80) {
+				return (oneLine.substring (0, 80) + "…"); //horizontal ellipsis
+				}
+			return (oneLine);
+			}
+		switch (theRow.type) {
+			case "table": {
+				const ctItems = countListerChildren.get (theRow.id).ct;
+				return ({kind: "table", value: ctItems + ((ctItems === 1) ? " item" : " items"), flTable: true});
+				}
+			case "script": case "outline": {
+				var ctLines = 0;
+				try {
+					ctLines = JSON.parse (theRow.value).length;
+					}
+				catch (err) {
+					}
+				return ({kind: theRow.type, value: ctLines + ((ctLines === 1) ? " line" : " lines")});
+				}
+			case "wptext":
+				return ({kind: "wp text", value: truncate (theRow.value)});
+			case "string":
+				return ({kind: "string", value: truncate (theRow.value)});
+			case "number": case "boolean":
+				return ({kind: theRow.type, value: String (theRow.value)});
+			case "date":
+				return ({kind: "date", value: new Date (theRow.value).toLocaleString ()});
+			case "list":
+				return ({kind: "list", value: truncate (theRow.value)});
+			case "address":
+				return ({kind: "address", value: String (theRow.value)});
+			case "novalue":
+				return ({kind: "nothing", value: ""});
+			case "marker": { //an undecoded value -- the row remembers its Frontier type and size, not the bytes
+				var markerKind = "binary";
+				try {
+					markerKind = JSON.parse (theRow.value).type;
+					}
+				catch (err) {
+					}
+				return ({kind: markerKind, value: "on disk"});
+				}
+			default:
+				return ({kind: theRow.type, value: ""});
+			}
+		}
+	function handleListTable (theResponse, theUrl) { //8/7/26 by CC -- the odb browser asks what's in a table, one level, summaries only
+		try {
+			const theAddressString = urlParam (theUrl, "address");
+			const theIdString = urlParam (theUrl, "id");
+			var theId, addressForErrors;
+			if (theIdString !== undefined) { //the browser expands by row id, so a name with a dot in it can't break the address
+
+				addressForErrors = "id " + theIdString;
+				theId = Number (theIdString);
+				if (!Number.isInteger (theId)) {
+					returnError (theResponse, 400, "Can't list " + addressForErrors + " because the id has to be a whole number.");
+					return;
+					}
+				const theRow = selectListerRow.get (theId);
+				if (theRow === undefined) {
+					returnError (theResponse, 404, "Can't list " + addressForErrors + " because there is no object with that id.");
+					return;
+					}
+				if (theRow.type !== "table") {
+					returnError (theResponse, 400, "Can't list " + addressForErrors + " because it isn't a table.");
+					return;
+					}
+				}
+			else {
+				if ((theAddressString === undefined) || (theAddressString.length === 0)) { //no address means the top level of the database
+					addressForErrors = "the top level";
+					theId = theStore.odb.odbId;
+					}
+				else {
+					addressForErrors = theAddressString;
+					const segments = parseAddressString (theAddressString);
+					if (segments === undefined) {
+						returnError (theResponse, 400, "Can't list " + theAddressString + " because it isn't a clean dotted address.");
+						return;
+						}
+					const theValue = getValueAtAddress (segments);
+					if ((theValue === undefined) || (theValue === null)) {
+						returnError (theResponse, 404, "Can't list " + theAddressString + " because there is no object at that address.");
+						return;
+						}
+					if (theValue.flOdbSqlTable !== true) {
+						returnError (theResponse, 400, "Can't list " + theAddressString + " because it isn't a table.");
+						return;
+						}
+					theId = theValue.odbId;
+					}
+				}
+			const entries = [];
+			selectListerChildren.all (theId).forEach (function (theRow) {
+				const summary = summaryForRow (theRow);
+				const entry = {
+					name: theRow.name,
+					kind: summary.kind,
+					value: summary.value
+					};
+				if (summary.flTable === true) {
+					entry.flTable = true;
+					entry.id = theRow.id;
+					}
+				entries.push (entry);
+				});
+			if (config.flLogRequests) {
+				console.log (nowText () + " listtable: " + addressForErrors + ", " + entries.length + " entries.");
+				}
+			returnJson (theResponse, 200, {
+				address: (theAddressString === undefined) ? "" : theAddressString,
+				ctEntries: entries.length,
+				entries
+				});
+			}
+		catch (err) {
+			returnError (theResponse, 500, "Can't list the table because " + err.message);
+			}
+		}
+	const typesForExtensions = { //8/7/26 by CC -- the odb browser's static files
+		".html": "text/html; charset=utf-8",
+		".js": "text/javascript; charset=utf-8",
+		".css": "text/css; charset=utf-8",
+		".svg": "image/svg+xml",
+		".png": "image/png",
+		".gif": "image/gif",
+		".woff": "font/woff",
+		".woff2": "font/woff2",
+		".ttf": "font/ttf",
+		".eot": "application/vnd.ms-fontobject",
+		".map": "application/json"
+		};
+	function serveStaticFile (theResponse, folderBase, relativePath) {
+		const fullPath = pathTool.normalize (pathTool.join (folderBase, relativePath));
+		if (!fullPath.startsWith (folderBase + pathTool.sep)) { //nothing outside the folder, however the path is spelled
+			returnError (theResponse, 403, "Can't serve " + relativePath + " because it reaches outside the folder.");
+			return;
+			}
+		const theType = typesForExtensions [pathTool.extname (fullPath).toLowerCase ()];
+		if (theType === undefined) {
+			returnError (theResponse, 403, "Can't serve " + relativePath + " because files of that type aren't served here.");
+			return;
+			}
+		fs.readFile (fullPath, function (err, theBuffer) {
+			if (err) {
+				returnError (theResponse, 404, "Can't serve " + relativePath + " because there is no file with that name.");
+				}
+			else {
+				theResponse.writeHead (200, Object.assign ({
+					"Content-Type": theType,
+					"Content-Length": theBuffer.length
+					}, headersCors));
+				theResponse.end (theBuffer);
+				}
+			});
+		}
+	function handleOdbBrowserFile (theResponse, theUrl) { //8/7/26 by CC -- the browser app's page, and Concord out of its own folder
+
+		var relativePath = theUrl.pathname.slice ("/odbbrowser".length); //the original casing -- fontAwesome's folder name has a capital in it
+
+		if ((relativePath === "") || (relativePath === "/")) {
+			relativePath = "/index.html";
+			}
+		if (relativePath.startsWith ("/concord/")) {
+			serveStaticFile (theResponse, folderConcord, relativePath.slice ("/concord/".length));
+			}
+		else {
+			serveStaticFile (theResponse, folderOdbBrowser, relativePath.slice (1));
+			}
+		}
 	function readBody (theRequest, callback, theResponseForRefusing) {
 
 		/*  theResponseForRefusing is optional -- pass it and an oversized body is
@@ -883,8 +1067,21 @@ var theStore; //assigned by startup, holds the open database
 						}
 					}
 				break;
+			case "/listtable": //8/7/26 by CC -- the odb browser asks what's in a table
+				if (!requestIsAuthorized (theRequest, theUrl)) {
+					returnError (theResponse, 401, "Can't list the table because the password is missing or wrong.");
+					}
+				else {
+					handleListTable (theResponse, theUrl);
+					}
+				break;
 			default:
-				returnError (theResponse, 404, "Can't answer the request because " + theUrl.pathname + " isn't something this server does.");
+				if ((thePath === "/odbbrowser") || (thePath.startsWith ("/odbbrowser/"))) { //8/7/26 by CC -- the browser app itself, no password -- the data calls carry it
+					handleOdbBrowserFile (theResponse, theUrl);
+					}
+				else {
+					returnError (theResponse, 404, "Can't answer the request because " + theUrl.pathname + " isn't something this server does.");
+					}
 				break;
 			}
 		}
@@ -898,6 +1095,12 @@ var theStore; //assigned by startup, holds the open database
 			}
 
 		theStore = odbSql.openDatabase (pathDatabase);
+
+		const sqlite3 = require ("better-sqlite3"); //8/7/26 by CC -- a second, read-only connection for the odb browser's listings; WAL mode makes concurrent readers safe
+		const listerDatabase = new sqlite3 (pathDatabase, {readonly: true});
+		selectListerChildren = listerDatabase.prepare ("select id, name, type, value from odb where parentid = ? order by lowername;");
+		selectListerRow = listerDatabase.prepare ("select id, name, type, value from odb where id = ?;");
+		countListerChildren = listerDatabase.prepare ("select count (*) as ct from odb where parentid = ?;");
 
 		console.log (myProductName + " v" + myVersion + " on port " + config.port + ", usertalk v" + versionUsertalk + ", " + theStore.countRows () + " rows in " + pathDatabase);
 		if (config.password.length === 0) {

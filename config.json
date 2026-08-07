@@ -4,5 +4,6 @@
 	"pathUsertalk": "../usertalk",
 	"pathDatabase": "data/odb.db",
 	"maxVerbCalls": 1000000,
-	"flLogRequests": true
+	"flLogRequests": true,
+	"pathConcord": "../concord"
 	}
