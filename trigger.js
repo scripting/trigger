@@ -1,8 +1,9 @@
-const myProductName = "trigger", myVersion = "0.5.1"; //7/29/26 by CC -- ship a UserTalk script to a server, run it there, get the value back; named by DW
+const myProductName = "trigger", myVersion = "0.5.2"; //7/29/26 by CC -- ship a UserTalk script to a server, run it there, get the value back; named by DW
 
 const http = require ("http");
 const fs = require ("fs");
 const pathTool = require ("path");
+const {Worker} = require ("worker_threads"); //8/7/26 by CC -- interactive runs happen on a worker thread so dialog verbs can block
 const xmlrpc = require ("davexmlrpc"); //8/1/26 by CC -- the webEdit endpoint speaks XML-RPC, using DW's implementation
 const xml2jsTool = require ("xml2js"); //8/1/26 by CC -- gates /rpc2 bodies: davexmlrpc throws on malformed XML, so nothing malformed may reach it
 
@@ -794,6 +795,105 @@ var selectListerChildren, selectListerRow, countListerChildren; //assigned by st
 			returnError (theResponse, 500, "Can't upload " + theAddressString + " because " + err.message);
 			}
 		}
+	/*  Interactive runs -- 8/7/26 by CC. The script runs on a worker thread
+		(runnerWorker.js). When it hits a dialog verb it posts the question
+		here and blocks; the browser gets the question as the answer to
+		whatever request it has open, shows it, and POSTs the person's answer
+		to /dialoganswer -- which wakes the worker and waits for what happens
+		next. One http exchange per question, however many it takes.  */
+
+	const runsInFlight = {};
+	var ctInteractiveRuns = 0;
+	const maxDialogWaitMilliseconds = 10 * 60 * 1000; //an unanswered dialog can't hold a worker forever
+	function respondToRun (theRun, theObject) {
+		if (theRun.theResponse !== undefined) {
+			returnJson (theRun.theResponse, 200, theObject);
+			theRun.theResponse = undefined;
+			}
+		}
+	function endRun (theRun, theObject) {
+		respondToRun (theRun, theObject);
+		clearTimeout (theRun.theTimer);
+		delete runsInFlight [theRun.runId];
+		}
+	function handleInteractiveRun (theResponse, theScript) {
+		if ((theScript === undefined) || (theScript.trim ().length === 0)) {
+			returnError (theResponse, 400, "Can't run anything because the request carried no script.");
+			return;
+			}
+		ctInteractiveRuns++;
+		const runId = "run" + ctInteractiveRuns + "-" + Math.floor (Math.random () * 1000000);
+		const sharedControl = new SharedArrayBuffer (8); //[0] answer-ready flag, [1] answer byte count
+		const sharedData = new SharedArrayBuffer (65536);
+		const thePathMap = {helpers: {}, prefs: {}, prefixes: {}};
+		if (config.pathMap !== undefined) {
+			Object.keys (thePathMap).forEach (function (name) {
+				if (config.pathMap [name] !== undefined) {
+					thePathMap [name] = config.pathMap [name];
+					}
+				});
+			}
+		const theWorker = new Worker (pathTool.join (__dirname, "runnerWorker.js"), {
+			workerData: {
+				scriptText: theScript,
+				folderUsertalk,
+				pathDatabase,
+				maxVerbCalls: config.maxVerbCalls,
+				pathMap: thePathMap,
+				sharedControl,
+				sharedData
+				}
+			});
+		const theRun = {runId, theWorker, sharedControl, sharedData, theResponse};
+		runsInFlight [runId] = theRun;
+		theWorker.on ("message", function (theMessage) {
+			switch (theMessage.type) {
+				case "dialog":
+					if (config.flLogRequests) {
+						console.log (nowText () + " " + runId + " asks: " + theMessage.question.prompt);
+						}
+					theRun.theTimer = setTimeout (function () { //nobody answered -- let the worker go
+						theWorker.terminate ();
+						endRun (theRun, {finished: true, message: "Can't finish the script because the dialog went unanswered for " + (maxDialogWaitMilliseconds / 60000) + " minutes."});
+						}, maxDialogWaitMilliseconds);
+					respondToRun (theRun, {finished: false, runId, dialog: theMessage.question});
+					break;
+				case "done":
+					endRun (theRun, Object.assign ({finished: true}, theMessage.result));
+					break;
+				case "failed":
+					endRun (theRun, {finished: true, message: theMessage.message});
+					break;
+				}
+			});
+		theWorker.on ("error", function (err) {
+			endRun (theRun, {finished: true, message: "Can't finish the script because " + err.message});
+			});
+		}
+	function handleDialogAnswer (theResponse, theUrl, theBody) {
+		const runId = urlParam (theUrl, "runid");
+		const theRun = runsInFlight [runId];
+		if (theRun === undefined) {
+			returnError (theResponse, 404, "Can't deliver the answer because there is no script waiting on run " + runId + ".");
+			return;
+			}
+		var theAnswer;
+		try {
+			theAnswer = JSON.parse (theBody);
+			}
+		catch (err) {
+			returnError (theResponse, 400, "Can't deliver the answer because the body of the request isn't JSON.");
+			return;
+			}
+		clearTimeout (theRun.theTimer);
+		theRun.theResponse = theResponse; //the next dialog or the finish answers this request
+		const theBytes = Buffer.from (JSON.stringify (theAnswer), "utf8");
+		new Uint8Array (theRun.sharedData).set (theBytes);
+		const theControl = new Int32Array (theRun.sharedControl);
+		Atomics.store (theControl, 1, theBytes.length);
+		Atomics.store (theControl, 0, 1);
+		Atomics.notify (theControl, 0);
+		}
 	function summaryForRow (theRow) { //8/7/26 by CC -- one line of the odb browser: what goes in the value and kind columns
 
 		/*  Works straight off the database row, so a table full of big values
@@ -1034,13 +1134,24 @@ var selectListerChildren, selectListerRow, countListerChildren; //assigned by st
 					returnError (theResponse, 401, "Can't run the script because the password is missing or wrong.");
 					}
 				else {
+					const flInteractive = theUrl.searchParams.has ("interactive"); //8/7/26 by CC -- dialogs allowed; the script runs on a worker thread
 					if (theRequest.method === "POST") {
 						readBody (theRequest, function (theBody) {
-							handleRun (theRequest, theResponse, theUrl, theBody);
+							if (flInteractive) {
+								handleInteractiveRun (theResponse, theBody);
+								}
+							else {
+								handleRun (theRequest, theResponse, theUrl, theBody);
+								}
 							});
 						}
 					else {
-						handleRun (theRequest, theResponse, theUrl, urlParam (theUrl, "script"));
+						if (flInteractive) {
+							handleInteractiveRun (theResponse, urlParam (theUrl, "script"));
+							}
+						else {
+							handleRun (theRequest, theResponse, theUrl, urlParam (theUrl, "script"));
+							}
 						}
 					}
 				break;
@@ -1064,6 +1175,21 @@ var selectListerChildren, selectListerRow, countListerChildren; //assigned by st
 						}
 					else {
 						returnError (theResponse, 405, "Can't upload the object because it has to be POSTed -- the OPML goes in the body of the request.");
+						}
+					}
+				break;
+			case "/dialoganswer": //8/7/26 by CC -- the person answered; wake the script that's waiting
+				if (!requestIsAuthorized (theRequest, theUrl)) {
+					returnError (theResponse, 401, "Can't deliver the answer because the password is missing or wrong.");
+					}
+				else {
+					if (theRequest.method === "POST") {
+						readBody (theRequest, function (theBody) {
+							handleDialogAnswer (theResponse, theUrl, theBody);
+							}, theResponse);
+						}
+					else {
+						returnError (theResponse, 405, "Can't deliver the answer because it has to be POSTed -- the answer goes in the body of the request.");
 						}
 					}
 				break;

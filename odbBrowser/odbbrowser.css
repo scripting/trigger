@@ -47,6 +47,43 @@ body {
 	color: #555555;
 	}
 
+.divDialogMask {
+	position: fixed;
+	left: 0;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.25);
+	z-index: 100;
+	}
+
+.divDialog {
+	max-width: 440px;
+	margin: 140px auto;
+	padding: 22px 26px;
+	background-color: white;
+	border: 1px solid silver;
+	border-radius: 8px;
+	box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+	}
+
+.divDialogPrompt {
+	font-size: 15px;
+	margin-bottom: 14px;
+	}
+
+.inputDialogAnswer {
+	font-size: 14px;
+	padding: 4px 8px;
+	width: 100%;
+	box-sizing: border-box;
+	margin-bottom: 14px;
+	}
+
+.divDialogButtons {
+	text-align: right;
+	}
+
 .divPasswordEntry {
 	max-width: 420px;
 	margin: 120px auto;

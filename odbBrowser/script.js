@@ -105,20 +105,75 @@ function saveScript () {
 		});
 	}
 
-function runScript () { //runs what's in the window, saved or not
+function runScript () { //runs what's in the window, saved or not -- dialogs appear right here as the script asks
 	showStatus ("Running…"); //horizontal ellipsis
-	serverCall ("/run", {opmltext: currentOpml ()}, "POST", function (err, data) {
-		if (err !== undefined) {
-			showStatus (err.message);
+	serverCall ("/run", {interactive: "1", opmltext: currentOpml ()}, "POST", handleRunAnswer);
+	}
+
+function handleRunAnswer (err, data) { //every exchange with a running script lands here, until it finishes
+	if (err !== undefined) {
+		showStatus (err.message);
+		return;
+		}
+	if (data.finished === false) {
+		showDialog (data.dialog, data.runId);
+		return;
+		}
+	if (data.message !== undefined) { //the script failed, or the dialog timed out
+		showStatus (data.message);
+		return;
+		}
+	var theValueText = JSON.stringify (data.value);
+	if (theValueText === undefined) { //a script with no value
+		theValueText = "(no value)";
+		}
+	showStatus (theValueText + " -- " + data.ctVerbCalls + " verb calls, " + data.ctMilliseconds + "ms");
+	}
+
+function showDialog (theDialog, runId) { //the script is standing still until one of these buttons is clicked
+	const divMask = $("<div class=\"divDialogMask\"></div>");
+	const divDialog = $("<div class=\"divDialog\"></div>");
+	const divPrompt = $("<div class=\"divDialogPrompt\"></div>").text (theDialog.prompt);
+	divDialog.append (divPrompt);
+	var inputAnswer;
+	if (theDialog.kind === "ask") {
+		inputAnswer = $("<input type=\"text\" class=\"inputDialogAnswer\">").val (theDialog.startValue);
+		divDialog.append (inputAnswer);
+		}
+	const divButtons = $("<div class=\"divDialogButtons\"></div>");
+	function answer (theButton) {
+		divMask.remove ();
+		showStatus ("Running…"); //horizontal ellipsis
+		const theAnswer = {button: theButton};
+		if (inputAnswer !== undefined) {
+			theAnswer.text = inputAnswer.val ();
 			}
-		else {
-			var theValueText = JSON.stringify (data.value);
-			if (theValueText === undefined) { //a script with no value
-				theValueText = "(no value)";
-				}
-			showStatus (theValueText + " -- " + data.ctVerbCalls + " verb calls, " + data.ctMilliseconds + "ms");
-			}
+		serverCall ("/dialoganswer", {runid: runId, opmltext: JSON.stringify (theAnswer)}, "POST", handleRunAnswer);
+		}
+	if ((theDialog.kind === "confirm") || (theDialog.kind === "ask")) {
+		const buttonCancel = $("<button class=\"buttonBar\">Cancel</button>").click (function () {
+			answer ("cancel");
+			});
+		divButtons.append (buttonCancel);
+		}
+	const buttonOk = $("<button class=\"buttonBar buttonDefault\">OK</button>").click (function () {
+		answer ("ok");
 		});
+	divButtons.append (buttonOk);
+	divDialog.append (divButtons);
+	divMask.append (divDialog);
+	$("body").append (divMask);
+	function returnKeyAnswers (event) {
+		if (event.which === 13) { //return key
+			answer ("ok");
+			}
+		}
+	if (inputAnswer !== undefined) {
+		inputAnswer.focus ().keydown (returnKeyAnswers);
+		}
+	else {
+		buttonOk.focus ();
+		}
 	}
 
 function zoomOutline () { //collapse everything, cursor to the first summit, top level showing
