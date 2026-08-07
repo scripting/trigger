@@ -15,7 +15,7 @@ Every route `uploadScripts` can take, read from the script itself. The prefix is
 | # | Prefix | Where it goes | Reaches a live server? | Status on marin |
 |---|---|---|---|---|
 | 1 | *(none)* | `data.prefs.folder` + flattened path — the project's render folder | no | **working** — `trigger.usertalk.org/files/nodeeditor/` |
-| 2 | *(none)* + `flUploadToS3` | also `s3.newobject (path, text, type)` | only if something serves that bucket | **stub** — `s3.newobject` returns a stub marker |
+| 2 | *(none)* + `flUploadToS3` | also `s3.newobject (path, text, type)` | only if something serves that bucket | **working** — the three s3 verbs are real, proven against the live bucket (§6) |
 | 3 | `file:` | the path exactly as written | no | **working**, bounded by the path map |
 | 4 | `dropbox:` | `user.prefs.dropboxfolder` + path | no | **mapped** to `files/dropbox`, nothing reads it |
 | 5 | `publicfolder:` | `user.prefs.publicfolder` + path | via the publicfolder app | **not mapped** — no prefix for it |
