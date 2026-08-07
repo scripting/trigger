@@ -1,3 +1,7 @@
+#### 8/7/26; 2:05:33 PM by CC
+
+Rewrote readme.md to describe the product as it is now -- the odb browser, the script windows and their buttons, dialogs, the desktop app, and the two-password permission split. It still described the 7/30 server, one endpoint and one password, and the repo is public now.
+
 #### 8/7/26; 1:30:12 PM by CC
 
 Big day -- trigger grew a face. The odb browser: a Concord outline over the database, Name/Value/Kind columns like Frontier's odb windows, lazy per-table loading through the new /listtable endpoint. Double-click a script's name and it opens in an editable window with Save, Run and Zoom buttons. Edits auto-save locally; the database changes only on Save. Run runs what's in the window and shows the value in the status line.
