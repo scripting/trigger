@@ -12,16 +12,26 @@ $(document).ready (function () {
 			opExpand: expandCallback
 			}
 		});
-	$("#divOutliner").on ("dblclick", ".concord-node", function (event) {
-		if ($(event.target).closest (".concord-node") [0] !== this) { //bubbling -- only the innermost row counts
+	/*  The open-a-script double-click listens in the capture phase, because
+		Concord's own read-only handler stops double-clicks on the name text
+		before they bubble -- so a bubble-phase handler only ever heard
+		clicks that landed beside the name, not on it.  */
+
+	document.getElementById ("divOutliner").addEventListener ("dblclick", function (event) {
+		const theNode = $(event.target).closest (".concord-node");
+		if (theNode.length === 0) {
 			return;
 			}
-		const attributes = $(this).data ("attributes");
+		const attributes = theNode.data ("attributes");
 		if ((attributes !== undefined) && ((attributes.kind === "script") || (attributes.kind === "outline"))) {
+			event.preventDefault ();
 			event.stopPropagation ();
-			window.open ("script.html?address=" + encodeURIComponent (addressForNode ($(this))), "_blank");
+			const theUrl = "script.html?address=" + encodeURIComponent (addressForNode (theNode));
+			if (window.open (theUrl, "_blank") === null) { //a popup blocker said no -- open it right here instead
+				window.location.href = theUrl;
+				}
 			}
-		});
+		}, true);
 	loadTopLevel ();
 	});
 

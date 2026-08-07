@@ -2,7 +2,7 @@
 	"port": 1680,
 	"password": "testonly",
 	"pathUsertalk": "../usertalk",
-	"pathDatabase": "data/odb.db",
+	"pathDatabase": "data/nodeeditor.db",
 	"maxVerbCalls": 1000000,
 	"flLogRequests": true,
 	"pathConcord": "../concord"
