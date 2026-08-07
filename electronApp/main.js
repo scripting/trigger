@@ -96,7 +96,7 @@ function trackWindow (theWindow) {
 	openWindows.push (theWindow);
 	theWindow.on ("move", saveSoon);
 	theWindow.on ("resize", saveSoon);
-	theWindow.on ("close", saveSoon);
+	theWindow.on ("close", saveWindowState); //synchronous -- a debounced save can lose the race against quit
 	theWindow.webContents.setWindowOpenHandler (function () { //a double-clicked script opens a real window
 		return ({action: "allow"});
 		});
