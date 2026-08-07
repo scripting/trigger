@@ -1,15 +1,14 @@
 {
-  "name": "electronapp",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "electron": "^43.3.0"
-  }
+	"name": "odbdesktop",
+	"version": "0.1.0",
+	"description": "The odb browser in its own windows on the desktop -- launches the trigger server if one is not running, restores the windows the way they were.",
+	"main": "main.js",
+	"scripts": {
+		"start": "electron ."
+	},
+	"author": "Dave Winer <dave@scripting.com>",
+	"license": "GPL-2.0",
+	"devDependencies": {
+		"electron": "^22.3.27"
+	}
 }
