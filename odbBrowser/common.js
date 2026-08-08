@@ -77,6 +77,99 @@ function serverCall (path, params, method, callback) { //the one transport primi
 		});
 	}
 
+/*  Running a script from here, dialogs included -- 8/8/26 by CC. The
+	machinery below used to live in script.js, for the Run button. It moved
+	here so a menu command can run in whatever window is frontmost: the app
+	calls runMenuScript with the script's text, and any dialogs the script
+	puts up appear in this window, over whatever the person was looking at.
+	showStatus is page-supplied when the page has a status line; the
+	fallback is a strip that appears at the bottom and fades.  */
+
+function showRunStatus (theText) {
+	if (typeof showStatus === "function") {
+		showStatus (theText);
+		return;
+		}
+	var divStrip = $(".divRunStatusStrip");
+	if (divStrip.length === 0) {
+		divStrip = $("<div class=\"divRunStatusStrip\"></div>");
+		$("body").append (divStrip);
+		}
+	divStrip.stop (true).text (theText).css ("opacity", 1);
+	divStrip.delay (5000).animate ({opacity: 0}, 1000);
+	}
+
+function runMenuScript (theScriptText) { //runs a menu command's script; dialogs appear right here
+	showRunStatus ("Running…"); //horizontal ellipsis
+	serverCall ("/run", {interactive: "1", opmltext: theScriptText}, "POST", handleRunAnswer);
+	}
+
+function handleRunAnswer (err, data) { //every exchange with a running script lands here, until it finishes
+	if (err !== undefined) {
+		showRunStatus (err.message);
+		return;
+		}
+	if (data.finished === false) {
+		showDialog (data.dialog, data.runId);
+		return;
+		}
+	if (data.message !== undefined) { //the script failed, or the dialog timed out
+		showRunStatus (data.message);
+		return;
+		}
+	var theValueText = JSON.stringify (data.value);
+	if (theValueText === undefined) { //a script with no value
+		theValueText = "(no value)";
+		}
+	showRunStatus (theValueText + " -- " + data.ctVerbCalls + " verb calls, " + data.ctMilliseconds + "ms");
+	}
+
+function showDialog (theDialog, runId) { //the script is standing still until one of these buttons is clicked
+	const divMask = $("<div class=\"divDialogMask\"></div>");
+	const divDialog = $("<div class=\"divDialog\"></div>");
+	const divPrompt = $("<div class=\"divDialogPrompt\"></div>").text (theDialog.prompt);
+	divDialog.append (divPrompt);
+	var inputAnswer;
+	if (theDialog.kind === "ask") {
+		inputAnswer = $("<input type=\"text\" class=\"inputDialogAnswer\">").val (theDialog.startValue);
+		divDialog.append (inputAnswer);
+		}
+	const divButtons = $("<div class=\"divDialogButtons\"></div>");
+	function answer (theButton) {
+		divMask.remove ();
+		showRunStatus ("Running…"); //horizontal ellipsis
+		const theAnswer = {button: theButton};
+		if (inputAnswer !== undefined) {
+			theAnswer.text = inputAnswer.val ();
+			}
+		serverCall ("/dialoganswer", {runid: runId, opmltext: JSON.stringify (theAnswer)}, "POST", handleRunAnswer);
+		}
+	if ((theDialog.kind === "confirm") || (theDialog.kind === "ask")) {
+		const buttonCancel = $("<button class=\"buttonBar\">Cancel</button>").click (function () {
+			answer ("cancel");
+			});
+		divButtons.append (buttonCancel);
+		}
+	const buttonOk = $("<button class=\"buttonBar buttonDefault\">OK</button>").click (function () {
+		answer ("ok");
+		});
+	divButtons.append (buttonOk);
+	divDialog.append (divButtons);
+	divMask.append (divDialog);
+	$("body").append (divMask);
+	function returnKeyAnswers (event) {
+		if (event.which === 13) { //return key
+			answer ("ok");
+			}
+		}
+	if (inputAnswer !== undefined) {
+		inputAnswer.focus ().keydown (returnKeyAnswers);
+		}
+	else {
+		buttonOk.focus ();
+		}
+	}
+
 function xmlEscape (theText) {
 	return (String (theText)
 		.split ("&").join ("&amp;")

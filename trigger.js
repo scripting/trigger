@@ -1,4 +1,4 @@
-const myProductName = "trigger", myVersion = "0.5.2"; //7/29/26 by CC -- ship a UserTalk script to a server, run it there, get the value back; named by DW
+const myProductName = "trigger", myVersion = "0.5.3"; //7/29/26 by CC -- ship a UserTalk script to a server, run it there, get the value back; named by DW
 
 const http = require ("http");
 const fs = require ("fs");
@@ -761,6 +761,52 @@ var selectListerChildren, selectListerRow, countListerChildren; //assigned by st
 			returnError (theResponse, 500, "Can't download " + theAddressString + " because " + err.message);
 			}
 		}
+	function handleGetMenubar (theResponse, theAddressString) { //8/8/26 by CC -- the app builds its menubar from this; a read call
+		try {
+			if (theAddressString === undefined) {
+				theAddressString = "user.menus.customMenu"; //the menubar Frontier installs for the user
+				}
+			const segments = parseAddressString (theAddressString);
+			if (segments === undefined) {
+				returnError (theResponse, 400, "Can't get the menubar at " + theAddressString + " because it isn't a clean dotted address.");
+				return;
+				}
+			const theValue = getValueAtAddress (segments);
+			if ((theValue === undefined) || (theValue === null)) {
+				returnError (theResponse, 404, "Can't get the menubar at " + theAddressString + " because there is no object at that address.");
+				return;
+				}
+			if ((theValue.flOdbMenubar !== true) || (!Array.isArray (theValue.lines))) {
+				returnError (theResponse, 400, "Can't get the menubar at " + theAddressString + " because the object there isn't a menubar.");
+				return;
+				}
+			/*  Each command's script goes out as OPML, rendered here with the
+				same code downloadobject uses -- the app posts it straight back
+				to /run, and isComment survives the trip, which plain text
+				wouldn't manage. Copies, so the store's value is never touched.  */
+
+			const menuLines = [];
+			theValue.lines.forEach (function (theLine) {
+				const lineCopy = Object.assign ({}, theLine);
+				if ((lineCopy.script !== undefined) && (Array.isArray (lineCopy.script.lines))) {
+					lineCopy.scriptOpml = scriptToOpml (lineCopy.script, lineCopy.text);
+					}
+				delete lineCopy.script;
+				menuLines.push (lineCopy);
+				});
+			if (config.flLogRequests) {
+				console.log (nowText () + " getmenubar: sent " + segments.join (".") + ", " + menuLines.length + " lines.");
+				}
+			returnJson (theResponse, 200, {
+				address: segments.join ("."),
+				ctLines: menuLines.length,
+				lines: menuLines
+				});
+			}
+		catch (err) {
+			returnError (theResponse, 500, "Can't get the menubar at " + theAddressString + " because " + err.message);
+			}
+		}
 	function handleUploadObject (theResponse, theAddressString, opmltext, scriptType) { //8/4/26 by CC
 		try {
 			if (theAddressString === undefined) {
@@ -1207,6 +1253,14 @@ var selectListerChildren, selectListerRow, countListerChildren; //assigned by st
 					}
 				else {
 					handleListTable (theResponse, theUrl);
+					}
+				break;
+			case "/getmenubar": //8/8/26 by CC -- the app asks for the menu structure, scripts riding along
+				if (!requestIsAuthorized (theRequest, theUrl)) {
+					returnError (theResponse, 401, "Can't get the menubar because the password is missing or wrong.");
+					}
+				else {
+					handleGetMenubar (theResponse, urlParam (theUrl, "address"));
 					}
 				break;
 			default:

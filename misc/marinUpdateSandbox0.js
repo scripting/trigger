@@ -40,28 +40,44 @@ function fail (message) {
 	fs.rmSync (folderStaging, {recursive: true, force: true});
 	fs.mkdirSync (folderStaging, {recursive: true});
 	childProcess.execSync ("tar xzf " + pathBundle + " -C " + folderStaging + " 2>/dev/null || true");
-	const flAnyPayload = fs.existsSync (folderStaging + "/data/sandbox0.db") || fs.existsSync (folderStaging + "/usertalk") || fs.existsSync (folderStaging + "/frontierodb.js");
+	var flAnyPayload = false;
+	["data/sandbox0.db", "usertalk", "odbBrowser", "concord", "frontierodb.js", "trigger.js", "runnerWorker.js"].forEach (function (name) {
+		if (fs.existsSync (folderStaging + "/" + name)) {
+			flAnyPayload = true;
+			}
+		});
 	if (!flAnyPayload) {
 		fail ("Can't update because nothing recognizable came out of the bundle.");
 		}
 	console.log ("bundle unpacked to staging");
 
 //code files copy straight in
-	["frontierodb.js"].forEach (function (fname) {
+	var flCodeShipped = false;
+	["frontierodb.js", "trigger.js", "runnerWorker.js"].forEach (function (fname) {
 		if (fs.existsSync (folderStaging + "/" + fname)) {
 			fs.copyFileSync (folderStaging + "/" + fname, folderDomain + "/" + fname);
+			flCodeShipped = true;
 			console.log ("copied " + fname);
 			}
 		});
-	if (fs.existsSync (folderStaging + "/usertalk")) {
-		childProcess.execSync ("cp -R " + folderStaging + "/usertalk/. " + folderDomain + "/usertalk/");
-		console.log ("copied usertalk");
+	["usertalk", "odbBrowser", "concord"].forEach (function (folderName) {
+		if (fs.existsSync (folderStaging + "/" + folderName)) {
+			childProcess.execSync ("cp -R " + folderStaging + "/" + folderName + "/. " + folderDomain + "/" + folderName + "/");
+			flCodeShipped = true;
+			console.log ("copied " + folderName);
+			}
+		});
+
+//the database, if one came along: stage beside, so the swap after the kill is an atomic rename
+	const pathNewDb = folderStaging + "/data/sandbox0.db";
+	const flDbShipped = fs.existsSync (pathNewDb);
+	if (flDbShipped) {
+		fs.renameSync (pathNewDb, folderDomain + "/data/sandbox0.db.new");
 		}
 
-//the database: stage beside, kill, rename into place
-	const pathNewDb = folderStaging + "/data/sandbox0.db";
-	if (fs.existsSync (pathNewDb)) {
-		fs.renameSync (pathNewDb, folderDomain + "/data/sandbox0.db.new");
+//kill the app -- new code and a new database both need the restart; forever respawns it
+	if (flCodeShipped || flDbShipped) {
+
 		/*  Find the pid from ps output rather than pgrep -f: pgrep can match
 			more than one pid (a respawn in progress rides beside the dying
 			process) and a multiline answer glued into a kill command runs the
@@ -77,6 +93,9 @@ function fail (message) {
 			childProcess.execSync ("kill " + thePid);
 			console.log ("killed the app, pid " + thePid);
 			}
+		}
+
+	if (flDbShipped) {
 		fs.renameSync (folderDomain + "/data/sandbox0.db.new", folderDomain + "/data/sandbox0.db");
 		["sandbox0.db-shm", "sandbox0.db-wal"].forEach (function (fname) {
 			fs.rmSync (folderDomain + "/data/" + fname, {force: true});

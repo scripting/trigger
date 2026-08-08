@@ -1,3 +1,9 @@
+#### 8/8/26; 5:30:00 PM by CC
+
+The app has DW's menubar -- plan step 2. Trigger 0.5.3 adds /getmenubar, a read call that serves the menu structure with each command's script rendered as OPML (so isComment survives; 25 of the menu's scripts carry comment lines that must not run). The desktop app fetches it at launch, borrows the saved connection the browse page already made, and builds native menus: his initials as the first menu's name -- the "=user.prefs.initials" title really evaluates on the server -- then Script and NodeEditor, separators, submenus, command keys, commented lines left out. Choosing a command runs its script in the frontmost window, and dialogs appear there, over whatever the person is looking at -- the run-with-dialogs machinery moved from the script window into the shared layer so every window has it.
+
+The local server config now points at the sandbox database, so the app opens on the same world as sandbox0.usertalk.org: the projects, the prefs, the menu. Deployed to marin the same hour; the update script now ships code as well as databases and restarts whenever either changed.
+
 #### 8/8/26; 4:00:00 PM by CC
 
 DW's custom menu is in the sandbox. He exported user.menus.customMenu from the OPML Editor as misc/menus.customMenu.ftmb, and frontierodb 0.3.0 learned to decode menubars -- both forms, the packed fat-page kind and the kind stored inside a database, so the two menubars inside nodeEditor.root that used to be opaque markers decode now too. 542 lines, 422 commands carrying their scripts; the rss.network command really runs nodeEditorSuite.openProjectWindow ("rssNetwork"), which is the front door the menu layer needs.

@@ -1,4 +1,4 @@
-const {app, BrowserWindow} = require ("electron");
+const {app, BrowserWindow, Menu} = require ("electron");
 const http = require ("http");
 const childProcess = require ("child_process");
 const fs = require ("fs");
@@ -12,6 +12,7 @@ var theServerProcess; //assigned by startServer, only if no server was already a
 var pathWindowState; //assigned at ready -- userData isn't known before then
 const openWindows = []; //every live window, so state can be saved as they move and close
 var theSaveTimer;
+var thePassword; //assigned by borrowPassword -- the same saved value the browse page asked for
 
 function checkServer (callback) { //flUp
 	const theRequest = http.get (urlServer + "/version", function (theResponse) {
@@ -57,6 +58,192 @@ function startServer (callback) { //use the running server if there is one, else
 				}
 			poll ();
 			}
+		});
+	}
+
+/*  The menubar -- 8/8/26 by CC. The app's menus come from the database:
+	user.menus.customMenu, served by /getmenubar with each command's script
+	riding along as OPML. A menu named "=expression" gets the expression's
+	value as its name, evaluated on the server. Choosing a command sends its
+	script to the frontmost window's page, which runs it with the same
+	machinery as the Run button -- so dialogs appear over what the person is
+	looking at.  */
+
+function serverJson (thePath, theBody, callback) { //one transport primitive for the app's own calls
+	const theOptions = {
+		method: (theBody === undefined) ? "GET" : "POST",
+		headers: {"x-trigger-password": thePassword}
+		};
+	const theRequest = http.request (urlServer + thePath, theOptions, function (theResponse) {
+		var theText = "";
+		theResponse.on ("data", function (chunk) {
+			theText += chunk;
+			});
+		theResponse.on ("end", function () {
+			var jstruct;
+			try {
+				jstruct = JSON.parse (theText);
+				}
+			catch (err) {
+				callback ({message: "Can't understand the server's answer to " + thePath + "."});
+				return;
+				}
+			if (theResponse.statusCode !== 200) {
+				callback (jstruct);
+				return;
+				}
+			callback (undefined, jstruct);
+			});
+		});
+	theRequest.on ("error", function (err) {
+		callback (err);
+		});
+	if (theBody !== undefined) {
+		theRequest.write (theBody);
+		}
+	theRequest.end ();
+	}
+
+function borrowPassword (theWindow, callback) { //the page asks the person once and saves it; the app reads the same saved value
+	function poll () {
+		if (theWindow.isDestroyed ()) {
+			return;
+			}
+		theWindow.webContents.executeJavaScript ("localStorage.getItem (\"odbBrowserPassword\")").then (function (theValue) {
+			if ((theValue !== null) && (theValue !== undefined) && (theValue.length > 0)) {
+				callback (theValue);
+				}
+			else {
+				setTimeout (poll, 1000);
+				}
+			}).catch (function () {
+				setTimeout (poll, 1000);
+				});
+		}
+	poll ();
+	}
+
+function runMenuCommand (theLine) { //the command's script runs in the frontmost window, dialogs and all
+	var theWindow = BrowserWindow.getFocusedWindow ();
+	if (theWindow === null) {
+		theWindow = undefined;
+		}
+	if (theWindow === undefined) {
+		openWindows.forEach (function (openWindow) {
+			if ((theWindow === undefined) && !openWindow.isDestroyed ()) {
+				theWindow = openWindow;
+				}
+			});
+		}
+	if (theWindow === undefined) {
+		return;
+		}
+	theWindow.webContents.executeJavaScript ("runMenuScript (" + JSON.stringify (theLine.scriptOpml) + ")").catch (function (err) {
+		console.log ("Can't run the menu command " + theLine.text + " because " + err.message);
+		});
+	}
+
+function menuTemplateFromLines (theLines) { //the flat lines with levels become nested menus
+
+	const summits = [];
+	const stack = [];
+	theLines.forEach (function (theLine) {
+		const theNode = {line: theLine, subs: []};
+		while ((stack.length > 0) && (stack [stack.length - 1].line.level >= theLine.level)) {
+			stack.pop ();
+			}
+		if (stack.length === 0) {
+			summits.push (theNode);
+			}
+		else {
+			stack [stack.length - 1].subs.push (theNode);
+			}
+		stack.push (theNode);
+		});
+
+	function itemFromNode (theNode) {
+		const theLine = theNode.line;
+		if (theLine.flComment === true) { //a commented line is turned off, its whole branch with it
+			return (undefined);
+			}
+		if (theLine.text === "-") {
+			return ({type: "separator"});
+			}
+		const theItem = {label: theLine.text};
+		if (theNode.subs.length > 0) {
+			const submenu = [];
+			theNode.subs.forEach (function (subNode) {
+				const subItem = itemFromNode (subNode);
+				if (subItem !== undefined) {
+					submenu.push (subItem);
+					}
+				});
+			theItem.submenu = submenu;
+			}
+		else {
+			if (theLine.scriptOpml !== undefined) {
+				if (theLine.cmdkey !== undefined) {
+					theItem.accelerator = "CommandOrControl+" + theLine.cmdkey;
+					}
+				theItem.click = function () {
+					runMenuCommand (theLine);
+					};
+				}
+			}
+		return (theItem);
+		}
+
+	const menus = [];
+	summits.forEach (function (theNode) {
+		const theItem = itemFromNode (theNode);
+		if ((theItem !== undefined) && (theItem.submenu !== undefined)) { //a summit with no items isn't a menu
+			menus.push (theItem);
+			}
+		});
+	return (menus);
+	}
+
+function evaluateMenuTitles (customMenus, callback) { //a menu named "=expression" gets the expression's value as its name
+	const pending = [];
+	customMenus.forEach (function (theMenu) {
+		if (theMenu.label.startsWith ("=")) {
+			pending.push (theMenu);
+			}
+		});
+	function doNext () {
+		if (pending.length === 0) {
+			callback ();
+			return;
+			}
+		const theMenu = pending.shift ();
+		serverJson ("/run", theMenu.label.slice (1), function (err, data) {
+			if ((err === undefined) && (data.value !== undefined)) {
+				theMenu.label = String (data.value);
+				}
+			doNext (); //an error leaves the "=expression" name showing, which at least says what it is
+			});
+		}
+	doNext ();
+	}
+
+function installMenubar () {
+	serverJson ("/getmenubar", undefined, function (err, data) {
+		if (err !== undefined) {
+			console.log ("Can't build the menubar because " + err.message);
+			return;
+			}
+		const customMenus = menuTemplateFromLines (data.lines);
+		evaluateMenuTitles (customMenus, function () {
+			const theTemplate = [
+				{role: "appMenu"},
+				{role: "fileMenu"},
+				{role: "editMenu"},
+				{role: "viewMenu"}
+				].concat (customMenus).concat ([
+				{role: "windowMenu"}
+				]);
+			Menu.setApplicationMenu (Menu.buildFromTemplate (theTemplate));
+			});
 		});
 	}
 
@@ -122,6 +309,12 @@ app.whenReady ().then (function () {
 		theState.windows.forEach (function (savedWindow) {
 			createWindow (savedWindow.url, savedWindow.bounds);
 			});
+		if (openWindows.length > 0) { //the menubar comes up as soon as the saved connection is readable
+			borrowPassword (openWindows [0], function (theValue) {
+				thePassword = theValue;
+				installMenubar ();
+				});
+			}
 		});
 	});
 
