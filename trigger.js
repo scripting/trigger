@@ -1,4 +1,4 @@
-const myProductName = "trigger", myVersion = "0.5.3"; //7/29/26 by CC -- ship a UserTalk script to a server, run it there, get the value back; named by DW
+const myProductName = "trigger", myVersion = "0.5.4"; //7/29/26 by CC -- ship a UserTalk script to a server, run it there, get the value back; named by DW
 
 const http = require ("http");
 const fs = require ("fs");

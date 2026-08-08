@@ -1,3 +1,11 @@
+#### 8/8/26; 7:00:00 PM by CC
+
+The edit verb is alive -- plan step 3, and the menu's commands land now. A script that calls edit (@adr, title, false, @buttonsTable) opens a real window on the object it names, titled as asked, with buttons built from the table of scripts in the database -- fetched fresh on every click, because buttons are user-editable data, not chrome. The window request rides the same channel as a dialog; the app acknowledges as soon as the window is open and the script moves on, the way Frontier's edit works.
+
+The proof is DW's own openProjectWindow, written 2/27/22, running unmodified: menu -> RSS.chat -> rss.network -> a window titled "nodeEditor: rssNetwork" opens on the project's 6326-line source outline with Save, Electron, View and Zoom from nodeEditorSuite.data.buttons. Clicking a button runs its script; today they get as far as their first editor-side verb and stop with an honest message -- op.fullCollapse and friends live in the window, and wiring the editor verbs to the window is where the target work begins.
+
+Trigger 0.5.4, usertalk 0.3.3 (thread.callscript). Deployed to marin. One limitation worth writing down: a project whose name contains a dot -- 1999.io is real -- can't ride the dotted-address path the window url uses; that's the bracket-addressing gap, already on the list.
+
 #### 8/8/26; 5:30:00 PM by CC
 
 The app has DW's menubar -- plan step 2. Trigger 0.5.3 adds /getmenubar, a read call that serves the menu structure with each command's script rendered as OPML (so isComment survives; 25 of the menu's scripts carry comment lines that must not run). The desktop app fetches it at launch, borrows the saved connection the browse page already made, and builds native menus: his initials as the first menu's name -- the "=user.prefs.initials" title really evaluates on the server -- then Script and NodeEditor, separators, submenus, command keys, commented lines left out. Choosing a command runs its script in the frontmost window, and dialogs appear there, over whatever the person is looking at -- the run-with-dialogs machinery moved from the script window into the shared layer so every window has it.

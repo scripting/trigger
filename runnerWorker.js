@@ -166,6 +166,34 @@ const theAnswerBytes = new Uint8Array (workerData.sharedData);
 			const theAnswer = askUser ({kind: "confirm", prompt: String (args [0])});
 			return (theAnswer.button === "ok");
 			};
+		verbs ["edit"] = function (args) { //edit (@adr, title, flReadonly, @buttonsTable) -- opens a real window in the app
+
+			/*  8/8/26 by CC -- Frontier's edit verb, the way nodeEditor uses it:
+				the fourth parameter is the address of a TABLE OF SCRIPTS, one
+				per button -- buttons are data, user-editable, not chrome. The
+				window request rides the same channel as a dialog; the app
+				answers as soon as the window is open, and the script moves on --
+				edit doesn't wait for the window to close, same as Frontier.  */
+
+			const theAddress = args [0];
+			if ((theAddress === undefined) || (theAddress === null) || (theAddress.flAddress !== true)) {
+				const message = "Can't edit because the first parameter isn't the address of the object to open.";
+				throw new Error (message);
+				}
+			const theQuestion = {kind: "edit", address: theAddress.pathText};
+			if (args [1] !== undefined) {
+				theQuestion.title = String (args [1]);
+				}
+			if (args [2] === true) {
+				theQuestion.flReadonly = true;
+				}
+			const adrButtons = args [3];
+			if ((adrButtons !== undefined) && (adrButtons !== null) && (adrButtons.flAddress === true)) {
+				theQuestion.buttonsAddress = adrButtons.pathText;
+				}
+			askUser (theQuestion);
+			return (true);
+			};
 		verbs ["dialog.ask"] = function (args) { //dialog.ask (prompt, @answer) -- true on OK, the text lands at the address
 			const thePrompt = String (args [0]);
 			const theAddress = args [1];

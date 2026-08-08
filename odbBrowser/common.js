@@ -104,12 +104,39 @@ function runMenuScript (theScriptText) { //runs a menu command's script; dialogs
 	serverCall ("/run", {interactive: "1", opmltext: theScriptText}, "POST", handleRunAnswer);
 	}
 
+function openEditWindow (theDialog) { //a script called edit -- a real window opens on the object it named
+
+	/*  In the desktop app window.open makes a real window, tracked and
+		restored like the others; in a plain browser it's a tab. The url
+		carries everything the window needs, so it comes back whole when
+		the app restores its windows at launch.  */
+
+	var theUrl = "script.html?address=" + encodeURIComponent (theDialog.address);
+	if (theDialog.title !== undefined) {
+		theUrl += "&title=" + encodeURIComponent (theDialog.title);
+		}
+	if (theDialog.buttonsAddress !== undefined) {
+		theUrl += "&buttons=" + encodeURIComponent (theDialog.buttonsAddress);
+		}
+	if (theDialog.flReadonly === true) {
+		theUrl += "&readonly=1";
+		}
+	if (window.open (theUrl, "_blank") === null) { //a popup blocker said no -- open it right here instead
+		window.location.href = theUrl;
+		}
+	}
+
 function handleRunAnswer (err, data) { //every exchange with a running script lands here, until it finishes
 	if (err !== undefined) {
 		showRunStatus (err.message);
 		return;
 		}
 	if (data.finished === false) {
+		if (data.dialog.kind === "edit") { //8/8/26 by CC -- the script asked for a window, not an answer
+			openEditWindow (data.dialog);
+			serverCall ("/dialoganswer", {runid: data.runId, opmltext: JSON.stringify ({button: "ok"})}, "POST", handleRunAnswer);
+			return;
+			}
 		showDialog (data.dialog, data.runId);
 		return;
 		}

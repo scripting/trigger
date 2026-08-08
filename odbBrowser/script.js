@@ -15,20 +15,30 @@ $(document).ready (function () {
 	if (!getPassword ()) { //the password form is on screen -- the page starts over after Connect
 		return;
 		}
-	theAddress = new URLSearchParams (window.location.search).get ("address");
+	const theParams = new URLSearchParams (window.location.search);
+	theAddress = theParams.get ("address");
 	if ((theAddress === null) || (theAddress.length === 0)) {
 		showStatus ("Can't open anything because the url carried no address.");
 		return;
 		}
-	document.title = theAddress;
-	$(".divWindowTitle").text (theAddress);
+	var theTitle = theParams.get ("title"); //8/8/26 by CC -- a window opened by the edit verb carries its own title
+	if ((theTitle === null) || (theTitle.length === 0)) {
+		theTitle = theAddress;
+		}
+	const flReadonly = theParams.get ("readonly") === "1";
+	document.title = theTitle;
+	$(".divWindowTitle").text (theTitle);
+	const theButtonsAddress = theParams.get ("buttons"); //8/8/26 by CC -- the edit verb points at a table of scripts, one per button
+	if ((theButtonsAddress !== null) && (theButtonsAddress.length > 0)) {
+		buildOdbButtons (theButtonsAddress);
+		}
 	$("#divOutliner").concord ({
 		prefs: {
 			outlineFont: "Lucida Grande",
 			outlineFontSize: 14,
 			outlineLineHeight: 24,
 			renderMode: false,
-			readonly: false
+			readonly: flReadonly
 			}
 		});
 	serverCall ("/downloadobject", {address: theAddress}, "GET", function (err, data) {
@@ -59,6 +69,45 @@ $(document).ready (function () {
 
 function draftKey () {
 	return ("odbDraft:" + theAddress);
+	}
+
+function buildOdbButtons (theButtonsAddress) {
+
+	/*  8/8/26 by CC -- the buttons come from the database: a table of
+		scripts, one per button, named "00001000<tab>Save" -- the number
+		sorts them, the label follows the tab. Clicking a button fetches
+		its script fresh and runs it -- the table is user-editable data,
+		so the click always runs what's there NOW. These replace the
+		built-in Save/Run/Zoom, which belong to plain script windows.  */
+
+	$("#buttonSave").remove ();
+	$("#buttonRun").remove ();
+	$("#buttonZoom").remove ();
+
+	serverCall ("/listtable", {address: theButtonsAddress}, "GET", function (err, data) {
+		if (err !== undefined) {
+			showStatus ("Can't get the buttons because " + err.message);
+			return;
+			}
+		data.entries.forEach (function (theEntry) {
+			if (theEntry.kind !== "script") {
+				return;
+				}
+			const ixTab = theEntry.name.indexOf ("\t");
+			const theLabel = (ixTab === -1) ? theEntry.name : theEntry.name.slice (ixTab + 1);
+			const buttonOdb = $("<button class=\"buttonBar\"></button>").text (theLabel);
+			buttonOdb.click (function () {
+				serverCall ("/downloadobject", {address: theButtonsAddress + "." + theEntry.name}, "GET", function (downloadErr, downloadData) {
+					if (downloadErr !== undefined) {
+						showStatus ("Can't run " + theLabel + " because " + downloadErr.message);
+						return;
+						}
+					runMenuScript (downloadData.opmltext);
+					});
+				});
+			$("#spanDirty").before (buttonOdb);
+			});
+		});
 	}
 
 function currentOpml () {
