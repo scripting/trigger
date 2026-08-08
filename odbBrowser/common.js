@@ -104,6 +104,93 @@ function runMenuScript (theScriptText) { //runs a menu command's script; dialogs
 	serverCall ("/run", {interactive: "1", opmltext: theScriptText}, "POST", handleRunAnswer);
 	}
 
+function showLocalAlert (theText) { //an error big enough to actually see; no server round trip, OK just closes it
+	const divMask = $("<div class=\"divDialogMask\"></div>");
+	const divDialog = $("<div class=\"divDialog\"></div>");
+	divDialog.append ($("<div class=\"divDialogPrompt\"></div>").text (theText));
+	const divButtons = $("<div class=\"divDialogButtons\"></div>");
+	const buttonOk = $("<button class=\"buttonBar buttonDefault\">OK</button>").click (function () {
+		divMask.remove ();
+		});
+	divButtons.append (buttonOk);
+	divDialog.append (divButtons);
+	divMask.append (divDialog);
+	$("body").append (divMask);
+	buttonOk.focus ();
+	}
+
+function executeEditorVerb (theVerb, theParams) {
+
+	/*  8/8/26 by CC -- the window's side of an op verb call: a script
+		running on the server asked to operate on THIS window's outline.
+		The verbs map onto Concord's op.  */
+
+	const theOp = $("#divOutliner").concord ().op;
+	switch (theVerb) {
+		case "op.fullcollapse":
+			theOp.fullCollapse ();
+			return (true);
+		case "op.fullexpand":
+			theOp.fullExpand ();
+			return (true);
+		case "op.expand":
+			theOp.expand ();
+			return (true);
+		case "op.collapse":
+			theOp.collapse ();
+			return (true);
+		case "op.firstsummit": {
+			const summits = $("#divOutliner .concord-node").filter (function () {
+				return ($(this).parents (".concord-node").length === 0);
+				});
+			if (summits.length > 0) {
+				theOp.setCursor (summits.first ());
+				}
+			return (true);
+			}
+		case "op.go":
+			return (theOp.go (theParams [0], (theParams [1] === undefined) ? 1 : Number (theParams [1])) !== false);
+		case "op.getlinetext":
+			return (theOp.getLineText ());
+		case "op.setlinetext":
+			theOp.setLineText (String (theParams [0]));
+			return (true);
+		case "op.attributes.getall": {
+			const theNode = theOp.getCursor ();
+			const attributes = theNode.data ("attributes");
+			return ((attributes === undefined) ? {} : attributes);
+			}
+		case "window.frontmost":
+			if ((typeof theAddress !== "undefined") && (theAddress !== null) && (theAddress.length > 0)) { //a script or project window knows its address
+				return (theAddress);
+				}
+			if ((typeof theScope !== "undefined") && (theScope !== undefined)) { //a browse window is rooted somewhere
+				return (theScope.address);
+				}
+			return ("");
+		case "speaker.beep": {
+			try {
+				const theContext = new (window.AudioContext || window.webkitAudioContext) ();
+				const theOscillator = theContext.createOscillator ();
+				theOscillator.frequency.value = 880;
+				theOscillator.connect (theContext.destination);
+				theOscillator.start ();
+				setTimeout (function () {
+					theOscillator.stop ();
+					theContext.close ();
+					}, 150);
+				}
+			catch (err) {
+				}
+			return (true);
+			}
+		default: {
+			const message = "the window doesn't know that verb.";
+			throw new Error (message);
+			}
+		}
+	}
+
 function openEditWindow (theDialog) { //a script called edit -- a real window opens on the object it named
 
 	/*  In the desktop app window.open makes a real window, tracked and
@@ -130,6 +217,7 @@ function openEditWindow (theDialog) { //a script called edit -- a real window op
 function handleRunAnswer (err, data) { //every exchange with a running script lands here, until it finishes
 	if (err !== undefined) {
 		showRunStatus (err.message);
+		showLocalAlert (err.message); //8/8/26 by CC -- a failure has to be SEEN; the status line alone wasn't (DW's Zoom report)
 		return;
 		}
 	if (data.finished === false) {
@@ -138,11 +226,23 @@ function handleRunAnswer (err, data) { //every exchange with a running script la
 			serverCall ("/dialoganswer", {runid: data.runId, opmltext: JSON.stringify ({button: "ok"})}, "POST", handleRunAnswer);
 			return;
 			}
+		if (data.dialog.kind === "editorverb") { //8/8/26 by CC -- the script is operating on THIS window's outline
+			var theAnswer;
+			try {
+				theAnswer = {value: executeEditorVerb (data.dialog.verb, data.dialog.params)};
+				}
+			catch (editorErr) {
+				theAnswer = {message: "Can't do " + data.dialog.verb + " in this window because " + editorErr.message};
+				}
+			serverCall ("/dialoganswer", {runid: data.runId, opmltext: JSON.stringify (theAnswer)}, "POST", handleRunAnswer);
+			return;
+			}
 		showDialog (data.dialog, data.runId);
 		return;
 		}
 	if (data.message !== undefined) { //the script failed, or the dialog timed out
 		showRunStatus (data.message);
+		showLocalAlert (data.message);
 		return;
 		}
 	var theValueText = JSON.stringify (data.value);

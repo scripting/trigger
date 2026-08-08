@@ -221,6 +221,73 @@ const theAnswerBytes = new Uint8Array (workerData.sharedData);
 			};
 		}
 
+	function installEditorVerbs (verbs) {
+
+		/*  8/8/26 by CC -- the op verbs operate on the WINDOW the script ran
+			from: a button click's script collapses that window's outline, a
+			menu command reads the frontmost window's line. Each call rides
+			the same channel as a dialog -- the window executes the verb on
+			its own outline and answers. In a plain run, with no window on
+			the other end, these aren't installed and the error says what's
+			missing.  */
+
+		function windowCall (verbName, params) {
+			const theAnswer = askUser ({kind: "editorverb", verb: verbName, params});
+			if ((theAnswer !== undefined) && (theAnswer !== null) && (theAnswer.message !== undefined)) {
+				throw new Error (theAnswer.message);
+				}
+			return (((theAnswer === undefined) || (theAnswer === null)) ? undefined : theAnswer.value);
+			}
+
+		function jsonSafe (theValue) { //what travels: scalars; anything else goes as its text
+			if ((theValue === undefined) || (theValue === null)) {
+				return (undefined);
+				}
+			if ((typeof theValue === "string") || (typeof theValue === "number") || (typeof theValue === "boolean")) {
+				return (theValue);
+				}
+			return (String (theValue));
+			}
+
+		const windowVerbNames = [
+			"op.fullcollapse", "op.fullexpand", "op.expand", "op.collapse",
+			"op.firstsummit", "op.go", "op.getlinetext", "op.setlinetext",
+			"speaker.beep"
+			];
+		windowVerbNames.forEach (function (verbName) {
+			verbs [verbName] = function (args) {
+				const params = [];
+				args.forEach (function (theArg) {
+					params.push (jsonSafe (theArg));
+					});
+				return (windowCall (verbName, params));
+				};
+			});
+
+		verbs ["op.attributes.getall"] = function (args) { //op.attributes.getAll (@atts) -- the cursor line's attributes land at the address
+			const theAddress = args [0];
+			if ((theAddress === undefined) || (theAddress === null) || (theAddress.flAddress !== true)) {
+				const message = "Can't get the attributes because the parameter isn't the address they go to.";
+				throw new Error (message);
+				}
+			var theAtts = windowCall ("op.attributes.getall", []);
+			if ((theAtts === undefined) || (theAtts === null) || (typeof theAtts !== "object")) {
+				theAtts = {};
+				}
+			theAddress.reference.set (theAtts);
+			return (true);
+			};
+
+		verbs ["window.frontmost"] = function (args, environment) { //answers the address of what the window is showing
+			const theAddressText = windowCall ("window.frontmost", []);
+			if ((theAddressText === undefined) || (theAddressText === "")) {
+				const message = "Can't get the frontmost window because the window didn't say what it's showing.";
+				throw new Error (message);
+				}
+			return (verbs ["string.parseaddress"] ([String (theAddressText)], environment));
+			};
+		}
+
 //run it
 	function main () {
 		const whenStart = new Date ();
@@ -239,6 +306,7 @@ const theAnswerBytes = new Uint8Array (workerData.sharedData);
 
 			const made = verbsMaker.makeVerbs (workerData.pathMap, theTrace);
 			installDialogVerbs (made.verbs);
+			installEditorVerbs (made.verbs);
 			const environment = evaluate.makeEnvironment (theStore.odb, made.verbs, theTrace);
 			environment.parseScript = function (theLines) {
 				return (parse.parseOutline (parse.linesToTree (theLines)));
