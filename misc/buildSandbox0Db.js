@@ -40,6 +40,20 @@ const sqlite3 = require ("better-sqlite3");
 		console.log ("Copied nodeEditor.root into " + folderOdb + ".");
 		}
 
+/*  DW exports land in the folder too, mounted where their subfolder says.
+	The custom menu came as misc/menus.customMenu.ftmb (8/8/26); it mounts
+	at user.menus.customMenu, and the merge-style copy of user.menus below
+	leaves it standing -- the export wins over the old database's
+	undecoded marker.  */
+
+	const pathMenuExport = pathTool.join (folderTrigger, "misc", "menus.customMenu.ftmb");
+	if (fs.existsSync (pathMenuExport)) {
+		const folderMenus = pathTool.join (folderOdb, "user", "menus");
+		fs.mkdirSync (folderMenus, {recursive: true});
+		fs.copyFileSync (pathMenuExport, pathTool.join (folderMenus, "customMenu.ftmb"));
+		console.log ("Copied the custom menu export into the build folder.");
+		}
+
 //phase 1: the roots become the database
 	odbSql.buildDatabase (folderOdb, pathNewDb, function (message) {
 		console.log (message);
@@ -106,26 +120,57 @@ const sqlite3 = require ("better-sqlite3");
 			});
 		}
 
-	function copySubtree (oldPath, newParentPath) {
+	function copyRowInto (oldRow, newParentId, flKeepExisting, pathForLog) {
+
+		/*  flKeepExisting: when the destination already holds a child with
+			the same name -- two tables merge child by child, anything else
+			stays as the folder build made it -- so a DW export in the build
+			folder always wins over the old database's copy. Recursion works
+			on rows and ids, never by re-splitting a dotted path: a name can
+			contain a dot.  */
+
+		const existing = newChild.get (newParentId, oldRow.lowername);
+		if (existing === undefined) {
+			const newId = newInsert.run (newParentId, oldRow.name, oldRow.lowername, oldRow.type, oldRow.value).lastInsertRowid;
+			ctCopied++;
+			if (oldRow.type === "table") {
+				copyRows (oldRow.id, newId);
+				}
+			}
+		else {
+			if (flKeepExisting === true) {
+				if ((existing.type === "table") && (oldRow.type === "table")) {
+					oldChildren.all (oldRow.id).forEach (function (theRow) {
+						copyRowInto (theRow, existing.id, true, pathForLog + "." + oldRow.name);
+						});
+					}
+				else {
+					console.log ("Kept the existing " + pathForLog + "." + oldRow.name + ".");
+					}
+				}
+			else {
+				deleteNewSubtree (existing.id);
+				console.log ("Replaced the existing " + pathForLog + "." + oldRow.name + ".");
+				const newId = newInsert.run (newParentId, oldRow.name, oldRow.lowername, oldRow.type, oldRow.value).lastInsertRowid;
+				ctCopied++;
+				if (oldRow.type === "table") {
+					copyRows (oldRow.id, newId);
+					}
+				}
+			}
+		}
+
+	function copySubtree (oldPath, newParentPath, flKeepExisting) {
 		const oldRow = findOldRow (oldPath);
 		const newParentId = ensureNewTable (newParentPath);
-		const existing = newChild.get (newParentId, oldRow.lowername);
-		if (existing !== undefined) {
-			deleteNewSubtree (existing.id);
-			console.log ("Replaced the existing " + newParentPath + "." + oldRow.name + ".");
-			}
 		ctCopied = 0;
-		const newId = newInsert.run (newParentId, oldRow.name, oldRow.lowername, oldRow.type, oldRow.value).lastInsertRowid;
-		ctCopied++;
-		if (oldRow.type === "table") {
-			copyRows (oldRow.id, newId);
-			}
+		copyRowInto (oldRow, newParentId, flKeepExisting, newParentPath);
 		console.log ("Copied " + oldPath + " into " + newParentPath + " -- " + ctCopied + " rows.");
 		}
 
 	const copyAll = newDb.transaction (function () {
 		copySubtree ("config.nodeEditor.projects", "config.nodeEditor");
-		copySubtree ("user.menus", "user");
+		copySubtree ("user.menus", "user", true);
 		copySubtree ("user.prefs", "user");
 		});
 	copyAll ();

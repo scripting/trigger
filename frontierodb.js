@@ -1,4 +1,4 @@
-var myProductName = "frontierOdb", myVersion = "0.2.1";
+var myProductName = "frontierOdb", myVersion = "0.3.0";
 
 /*  Read a Frontier object database (.root file), or a fat page export
 	(.fttb, .ftop, .ftsc), into a JavaScript structure.
@@ -166,13 +166,12 @@ function makeUnpacker (getBlock, flMemory) {
 		return (hstrings.slice (ix + 4, ix + 4 + len));
 		}
 
-	function unpackOutline (theBuffer) {
+	function parseOutlineSections (textBytes, tableBytes, flKeepRefcons) {
 
-		const sizelinetable = theBuffer.readUInt32BE (2);
-		const sizetext = theBuffer.readUInt32BE (6);
-		const headerSize = theBuffer.length - sizetext - sizelinetable;
-		const textBytes = theBuffer.slice (headerSize, headerSize + sizetext);
-		const tableBytes = theBuffer.slice (headerSize + sizetext, headerSize + sizetext + sizelinetable);
+		/*  The two data sections of a packed outline: tab-indented
+			CR-separated text, then a line table with one entry per line.
+			Shared by outlines, scripts and the menubar outline -- the
+			menubar is the caller that wants the refcon bytes kept.  */
 
 		const lines = [];
 		var ixText = 0;
@@ -198,11 +197,159 @@ function makeUnpacker (getBlock, flMemory) {
 			if (ixTable + 6 <= tableBytes.length) {
 				const flags = tableBytes.readUInt16BE (ixTable);
 				const lenrefcon = tableBytes.readUInt32BE (ixTable + 2);
+				if (flKeepRefcons && (lenrefcon > 0)) {
+					line.refconBytes = tableBytes.slice (ixTable + 6, ixTable + 6 + lenrefcon);
+					}
 				ixTable += 6 + lenrefcon;
 				line.flExpanded = (flags & 0x8000) !== 0;
 				line.flComment = (flags & 0x0400) !== 0;
 				line.flBreakpoint = (flags & 0x0200) !== 0;
 				}
+			});
+
+		return ({lines, ctTableBytes: ixTable});
+		}
+
+	function unpackOutline (theBuffer) {
+
+		const sizelinetable = theBuffer.readUInt32BE (2);
+		const sizetext = theBuffer.readUInt32BE (6);
+		const headerSize = theBuffer.length - sizetext - sizelinetable;
+		const textBytes = theBuffer.slice (headerSize, headerSize + sizetext);
+		const tableBytes = theBuffer.slice (headerSize + sizetext, headerSize + sizetext + sizelinetable);
+
+		return (parseOutlineSections (textBytes, tableBytes, false).lines);
+		}
+
+	function interpretMenubarRefcons (lines) {
+
+		/*  Each menubar line's refcon is a tymenuiteminfo: cmdkey byte,
+			cmdmodifiers byte, then a dbaddress and an outline handle for
+			the linked script -- either one nonzero means the line has a
+			script (the kernel's meunpackscriptvisit makes the same test).
+			Leaves flLinkedScript and adrlink on the line for the caller
+			to consume and remove.  */
+
+		lines.forEach (function (line) {
+			if ((line.refconBytes !== undefined) && (line.refconBytes.length >= 10)) {
+				const cmdkey = line.refconBytes [0];
+				if (cmdkey !== 0) {
+					line.cmdkey = macRomanToString (line.refconBytes.slice (0, 1));
+					}
+				line.adrlink = line.refconBytes.readUInt32BE (2);
+				line.flLinkedScript = (line.adrlink !== 0) || (line.refconBytes.readUInt32BE (6) !== 0);
+				}
+			delete line.refconBytes;
+			});
+		}
+
+	function unpackMenubarPacked (theBuffer) {
+
+		/*  A menubar packed into memory by the kernel's mepackmenustructure
+			(menupack.c) -- the form a fat page carries: a mergehandles pair.
+			Part 1 is a tysavedmenuinfo record followed by the menubar
+			outline packed by oppack -- a tyversion2diskheader, the
+			tab-indented text, the line table. Part 2 is the linked scripts,
+			one packed outline after another, in the order a pre-order walk
+			of the menubar outline meets the lines that carry one.
+
+			The struct sizes aren't hard-coded here: the savedmenuinfo
+			starts with a short 1 and the version-2 outline header with a
+			short 2, and the header's two size fields have to account for
+			part 1 exactly -- the scan accepts the offset where everything
+			adds up, then knows the header size for part 2's scripts too.
+
+			by CC, 8/8/26 */
+
+		const parts = unmergeHandles (theBuffer);
+		const part1 = parts.part1;
+		const part2 = parts.part2;
+
+		var headerSize, menubarParse;
+		var ixScan;
+		for (ixScan = 2; ixScan + 10 <= part1.length; ixScan += 2) {
+			if ((part1.readUInt16BE (ixScan) >= 2) && (part1.readUInt16BE (ixScan) <= 3)) {
+				const sizelinetable = part1.readUInt32BE (ixScan + 2);
+				const sizetext = part1.readUInt32BE (ixScan + 6);
+				const candidateHeaderSize = part1.length - ixScan - sizetext - sizelinetable;
+				if ((candidateHeaderSize >= 40) && (candidateHeaderSize <= 400)) {
+					const textBytes = part1.slice (ixScan + candidateHeaderSize, ixScan + candidateHeaderSize + sizetext);
+					if ((sizetext === 0) || (textBytes [textBytes.length - 1] === 13)) { //every line ends with a carriage return
+						const tableBytes = part1.slice (ixScan + candidateHeaderSize + sizetext);
+						const candidateParse = parseOutlineSections (textBytes, tableBytes, true);
+						if (candidateParse.ctTableBytes === tableBytes.length) { //the line table accounts for every byte
+							headerSize = candidateHeaderSize;
+							menubarParse = candidateParse;
+							break;
+							}
+						}
+					}
+				}
+			}
+
+		if (menubarParse === undefined) {
+			const message = "Can't unpack the menubar because no offset makes the outline header's sizes account for the data.";
+			throw new Error (message);
+			}
+
+		const lines = menubarParse.lines;
+		interpretMenubarRefcons (lines);
+
+		//the scripts, consumed in line order
+			var ixScripts = 0;
+			var ctScripts = 0;
+			lines.forEach (function (line) {
+				if (line.flLinkedScript === true) {
+					if (ixScripts + 10 > part2.length) {
+						const message = "Can't unpack the menubar because it ran out of packed scripts after " + ctScripts + ".";
+						throw new Error (message);
+						}
+					const sizelinetable = part2.readUInt32BE (ixScripts + 2);
+					const sizetext = part2.readUInt32BE (ixScripts + 6);
+					const textBytes = part2.slice (ixScripts + headerSize, ixScripts + headerSize + sizetext);
+					const tableBytes = part2.slice (ixScripts + headerSize + sizetext, ixScripts + headerSize + sizetext + sizelinetable);
+					line.script = {lines: parseOutlineSections (textBytes, tableBytes, false).lines};
+					ixScripts += headerSize + sizetext + sizelinetable;
+					ctScripts++;
+					}
+				delete line.flLinkedScript;
+				delete line.adrlink;
+				});
+
+		if (ixScripts !== part2.length) {
+			const message = "Can't trust the unpacked menubar because " + (part2.length - ixScripts) + " bytes of packed scripts were left over after " + ctScripts + " scripts.";
+			throw new Error (message);
+			}
+
+		return (lines);
+		}
+
+	function unpackMenubarFromDb (infoBytes) {
+
+		/*  A menubar stored in a database -- the form the kernel's
+			mesavemenurecord writes with flmemory false: the block is just
+			the tysavedmenuinfo record, whose adroutline (a long at offset
+			2) points at the menubar outline saved as its own block, and
+			each line's refcon carries the dbaddress of its script's block.
+			Mirrors meloadmenurecord.
+
+			by CC, 8/8/26 */
+
+		const adroutline = infoBytes.readUInt32BE (2);
+		const outlineBlock = getBlock (adroutline);
+		const sizelinetable = outlineBlock.readUInt32BE (2);
+		const sizetext = outlineBlock.readUInt32BE (6);
+		const headerSize = outlineBlock.length - sizetext - sizelinetable;
+		const lines = parseOutlineSections (outlineBlock.slice (headerSize, headerSize + sizetext), outlineBlock.slice (headerSize + sizetext), true).lines;
+
+		interpretMenubarRefcons (lines);
+
+		lines.forEach (function (line) {
+			if ((line.flLinkedScript === true) && (line.adrlink !== 0)) {
+				line.script = {lines: unpackOutline (getBlock (line.adrlink))};
+				}
+			delete line.flLinkedScript;
+			delete line.adrlink;
 			});
 
 		return (lines);
@@ -232,6 +379,12 @@ function makeUnpacker (getBlock, flMemory) {
 				return ({type: kind, lines: unpackOutline (getExternalData ())});
 				}
 			else {
+				if (kind === "menubar") { //8/8/26 by CC -- the menu structure with each command's script attached; two storage forms
+					if (flMemory) {
+						return ({type: kind, lines: unpackMenubarPacked (packed.slice (4))});
+						}
+					return ({type: kind, lines: unpackMenubarFromDb (getExternalData ())});
+					}
 				const blockData = getExternalData ();
 				var length = 0;
 				if (blockData !== undefined) {

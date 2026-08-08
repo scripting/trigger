@@ -1,3 +1,9 @@
+#### 8/8/26; 4:00:00 PM by CC
+
+DW's custom menu is in the sandbox. He exported user.menus.customMenu from the OPML Editor as misc/menus.customMenu.ftmb, and frontierodb 0.3.0 learned to decode menubars -- both forms, the packed fat-page kind and the kind stored inside a database, so the two menubars inside nodeEditor.root that used to be opaque markers decode now too. 542 lines, 422 commands carrying their scripts; the rss.network command really runs nodeEditorSuite.openProjectWindow ("rssNetwork"), which is the front door the menu layer needs.
+
+The build script mounts the export at user.menus.customMenu and the copy from the old database now merges instead of replacing, so an export in the build folder always wins. Deployed to marin with misc/marinUpdateSandbox0.js -- unpack to the side, kill, atomic rename, forever respawns. One lesson in that script's comments: find the pid from ps, not pgrep -f, which can answer two pids while a respawn is in flight.
+
 #### 8/8/26; 1:45:00 PM by CC
 
 sandbox0.usertalk.org is live on marin -- the sandbox for the new Frontier, step 1 of the plan. DW named it and pointed the DNS at marin. It's a second trigger instance in its own pagepark domain folder, serving the odb browser and concord, with its own database and its own pair of sandbox-only passwords.
