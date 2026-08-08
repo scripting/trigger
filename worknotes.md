@@ -1,3 +1,11 @@
+#### 8/8/26; 8:30:00 PM by CC
+
+Windows follow databases now -- the model DW laid out this morning: the merged root was a storage artifact, never the thing to look at. The build writes a files table (system.compiler.files, the way the kernel's compiler tracks open guests) saying which logical database owns which top-level names; /getdatabases serves it; and the browse page opens scoped windows -- nodeEditor.root shows exactly the ten tables from DW's screenshot, config.root shows config's contents under its own name, and sandbox0.root is the main root: system, user, scratchpad. Each window keeps its own expansion and scroll state, and addresses inside a mounted window carry the mount -- a script under config.root's nodeEditor really lives at config.nodeEditor.
+
+The edit verb opens table windows too: edit (@config, "config.root") opens a browse window rooted there, while scripts and outlines keep opening the editor. The app's File menu lists the databases, one click opens one as its own window, and the app's default window is nodeEditor.root -- a saved merged-root window comes back as that. Trigger 0.5.5, deployed to marin with the rebuilt database.
+
+Queued from DW, not yet looked at: clicking Zoom in a project window appeared to do nothing, and the devtools console wasn't cooperating. The status line very likely showed the can't-do-editor-verbs message -- but it deserves a real look, and the result of a button click should probably be more visible than a line of small text.
+
 #### 8/8/26; 7:00:00 PM by CC
 
 The edit verb is alive -- plan step 3, and the menu's commands land now. A script that calls edit (@adr, title, false, @buttonsTable) opens a real window on the object it names, titled as asked, with buttons built from the table of scripts in the database -- fetched fresh on every click, because buttons are user-editable data, not chrome. The window request rides the same channel as a dialog; the app acknowledges as soon as the window is open and the script moves on, the way Frontier's edit works.

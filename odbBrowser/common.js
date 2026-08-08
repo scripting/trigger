@@ -111,7 +111,8 @@ function openEditWindow (theDialog) { //a script called edit -- a real window op
 		carries everything the window needs, so it comes back whole when
 		the app restores its windows at launch.  */
 
-	var theUrl = "script.html?address=" + encodeURIComponent (theDialog.address);
+	var theUrl = (theDialog.objectType === "table") ? "./?address=" : "script.html?address="; //a table opens a table window, everything else the editor
+	theUrl += encodeURIComponent (theDialog.address);
 	if (theDialog.title !== undefined) {
 		theUrl += "&title=" + encodeURIComponent (theDialog.title);
 		}

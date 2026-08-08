@@ -226,6 +226,25 @@ function evaluateMenuTitles (customMenus, callback) { //a menu named "=expressio
 	doNext ();
 	}
 
+function fileMenuTemplate (callback) { //File lists the databases -- each one opens as its own window, DW's model
+	serverJson ("/getdatabases", undefined, function (err, data) {
+		const items = [];
+		if ((err === undefined) && (data.databases.length > 0)) {
+			data.databases.forEach (function (theDatabase) {
+				items.push ({
+					label: theDatabase.name,
+					click: function () {
+						createWindow (urlBrowsePage + "?database=" + encodeURIComponent (theDatabase.name));
+						}
+					});
+				});
+			items.push ({type: "separator"});
+			}
+		items.push ({role: "close"});
+		callback ({label: "File", submenu: items});
+		});
+	}
+
 function installMenubar () {
 	serverJson ("/getmenubar", undefined, function (err, data) {
 		if (err !== undefined) {
@@ -234,29 +253,42 @@ function installMenubar () {
 			}
 		const customMenus = menuTemplateFromLines (data.lines);
 		evaluateMenuTitles (customMenus, function () {
-			const theTemplate = [
-				{role: "appMenu"},
-				{role: "fileMenu"},
-				{role: "editMenu"},
-				{role: "viewMenu"}
-				].concat (customMenus).concat ([
-				{role: "windowMenu"}
-				]);
-			Menu.setApplicationMenu (Menu.buildFromTemplate (theTemplate));
+			fileMenuTemplate (function (theFileMenu) {
+				const theTemplate = [
+					{role: "appMenu"},
+					theFileMenu,
+					{role: "editMenu"},
+					{role: "viewMenu"}
+					].concat (customMenus).concat ([
+					{role: "windowMenu"}
+					]);
+				Menu.setApplicationMenu (Menu.buildFromTemplate (theTemplate));
+				});
 			});
 		});
 	}
 
 function readWindowState () {
+
+	/*  8/8/26 by CC -- windows follow databases now, so a saved plain
+		browse window (the merged-root view, a storage artifact) comes back
+		as the nodeEditor.root window, and a fresh start opens that too.  */
+
+	const urlDefaultWindow = urlBrowsePage + "?database=nodeEditor.root";
 	try {
 		const jstruct = JSON.parse (fs.readFileSync (pathWindowState, "utf8"));
 		if (Array.isArray (jstruct.windows) && (jstruct.windows.length > 0)) {
+			jstruct.windows.forEach (function (savedWindow) {
+				if ((savedWindow.url === urlBrowsePage) || (savedWindow.url === urlBrowsePage + "index.html")) {
+					savedWindow.url = urlDefaultWindow;
+					}
+				});
 			return (jstruct);
 			}
 		}
 	catch (err) {
 		}
-	return ({windows: [{url: urlBrowsePage, bounds: {width: 1100, height: 750}}]});
+	return ({windows: [{url: urlDefaultWindow, bounds: {width: 1100, height: 750}}]});
 	}
 
 function saveWindowState () {

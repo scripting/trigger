@@ -1,4 +1,4 @@
-const myProductName = "trigger", myVersion = "0.5.4"; //7/29/26 by CC -- ship a UserTalk script to a server, run it there, get the value back; named by DW
+const myProductName = "trigger", myVersion = "0.5.5"; //7/29/26 by CC -- ship a UserTalk script to a server, run it there, get the value back; named by DW
 
 const http = require ("http");
 const fs = require ("fs");
@@ -807,6 +807,50 @@ var selectListerChildren, selectListerRow, countListerChildren; //assigned by st
 			returnError (theResponse, 500, "Can't get the menubar at " + theAddressString + " because " + err.message);
 			}
 		}
+	function handleGetDatabases (theResponse) { //8/8/26 by CC -- the logical databases, so windows can follow them
+
+		/*  Reads system.compiler.files, written at build time: each entry is
+			a database the browser can open as its own window -- a mount
+			address (adr) or a list of top-level names it owns. One SQL file,
+			many windows; the windows follow the databases, per DW's model.  */
+
+		try {
+			const databases = [];
+			var filesTable;
+			try {
+				filesTable = theStore.odb.system.compiler.files;
+				}
+			catch (err) {
+				filesTable = undefined;
+				}
+			if ((filesTable !== undefined) && (filesTable !== null) && (typeof filesTable === "object")) {
+				Reflect.ownKeys (filesTable).forEach (function (name) {
+					if (typeof name !== "string") {
+						return;
+						}
+					if ((name === "flOdbSqlTable") || (name === "odbId")) {
+						return;
+						}
+					const theRecord = filesTable [name];
+					if ((theRecord === undefined) || (theRecord === null) || (typeof theRecord !== "object")) {
+						return;
+						}
+					const theDatabase = {name};
+					if (typeof theRecord.adr === "string") {
+						theDatabase.address = theRecord.adr;
+						}
+					if (Array.isArray (theRecord.names)) {
+						theDatabase.names = theRecord.names;
+						}
+					databases.push (theDatabase);
+					});
+				}
+			returnJson (theResponse, 200, {ctDatabases: databases.length, databases});
+			}
+		catch (err) {
+			returnError (theResponse, 500, "Can't list the databases because " + err.message);
+			}
+		}
 	function handleUploadObject (theResponse, theAddressString, opmltext, scriptType) { //8/4/26 by CC
 		try {
 			if (theAddressString === undefined) {
@@ -1261,6 +1305,14 @@ var selectListerChildren, selectListerRow, countListerChildren; //assigned by st
 					}
 				else {
 					handleGetMenubar (theResponse, urlParam (theUrl, "address"));
+					}
+				break;
+			case "/getdatabases": //8/8/26 by CC -- windows follow databases; this is the list
+				if (!requestIsAuthorized (theRequest, theUrl)) {
+					returnError (theResponse, 401, "Can't list the databases because the password is missing or wrong.");
+					}
+				else {
+					handleGetDatabases (theResponse);
 					}
 				break;
 			default:

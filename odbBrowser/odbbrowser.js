@@ -1,7 +1,72 @@
+/*  Windows follow databases -- 8/8/26 by CC, DW's model. One SQL file
+	holds everything, but a window never shows the merged root: it opens on
+	ONE logical database (?database=nodeEditor.root, resolved through
+	/getdatabases into a mount address or a list of top-level names), or
+	rooted at a table address (?address=config, how the edit verb opens a
+	table). With neither param the page shows the merged root -- a storage
+	artifact, kept reachable for plumbing work but never the default.  */
+
+var theScope; //assigned at startup: {title, address, names} -- what this window shows
+
+function scopeStateKey () { //each window remembers its own expansions and scroll
+	var theKey = "odbBrowserState";
+	if (theScope.title !== "the odb") {
+		theKey += ":" + theScope.title;
+		}
+	return (theKey);
+	}
+
+function resolveScope (callback) {
+	const theParams = new URLSearchParams (window.location.search);
+	const theDatabase = theParams.get ("database");
+	const theAddress = theParams.get ("address");
+	const theTitle = theParams.get ("title");
+	if ((theDatabase !== null) && (theDatabase.length > 0)) {
+		serverCall ("/getdatabases", {}, "GET", function (err, data) {
+			if (err !== undefined) {
+				callback (err);
+				return;
+				}
+			var found;
+			data.databases.forEach (function (theRecord) {
+				if (theRecord.name === theDatabase) {
+					found = theRecord;
+					}
+				});
+			if (found === undefined) {
+				callback ({message: "Can't open " + theDatabase + " because it isn't in the list of databases."});
+				return;
+				}
+			const theNames = ((found.names !== undefined) && (found.names.length > 0)) ? found.names : undefined; //an empty list means the address IS the scope
+			callback (undefined, {title: theDatabase, address: found.address, names: theNames});
+			});
+		return;
+		}
+	if ((theAddress !== null) && (theAddress.length > 0)) {
+		callback (undefined, {title: ((theTitle !== null) && (theTitle.length > 0)) ? theTitle : theAddress, address: theAddress});
+		return;
+		}
+	callback (undefined, {title: "the odb", address: ""}); //the merged root, the artifact view
+	}
+
 $(document).ready (function () {
 	if (!getPassword ()) { //the password form is on screen -- the page starts over after Connect
 		return;
 		}
+	resolveScope (function (err, scope) {
+		if (err !== undefined) {
+			$(".divWindowTitle").text (err.message);
+			return;
+			}
+		theScope = scope;
+		document.title = theScope.title;
+		$(".divWindowTitle").text (theScope.title);
+		theState = readState ();
+		startOutliner ();
+		});
+	});
+
+function startOutliner () {
 	$("#divOutliner").concord ({
 		prefs: {
 			outlineFont: "Lucida Grande",
@@ -43,10 +108,30 @@ $(document).ready (function () {
 			}
 		}, true);
 	loadTopLevel ();
-	});
+	}
 
-function getTableEntries (theId, callback) { //theId undefined means the top level
-	serverCall ("/listtable", {id: theId}, "GET", callback);
+function getTableEntries (theId, callback) { //theId undefined means this window's top level
+	if (theId !== undefined) {
+		serverCall ("/listtable", {id: theId}, "GET", callback);
+		return;
+		}
+	serverCall ("/listtable", {address: theScope.address}, "GET", function (err, data) {
+		if (err !== undefined) {
+			callback (err);
+			return;
+			}
+		if (theScope.names !== undefined) { //a database that owns some of the root's names, not all of them
+			const entries = [];
+			data.entries.forEach (function (theEntry) {
+				if (theScope.names.indexOf (theEntry.name) !== -1) {
+					entries.push (theEntry);
+					}
+				});
+			data.entries = entries;
+			data.ctEntries = entries.length;
+			}
+		callback (undefined, data);
+		});
 	}
 
 function addressForNode (theNode) { //walk up the outline collecting names -- the dotted address of the row
@@ -59,6 +144,9 @@ function addressForNode (theNode) { //walk up the outline collecting names -- th
 			}
 		segments.unshift (attributes.name);
 		current = current.parent ().closest (".concord-node");
+		}
+	if (theScope.address.length > 0) { //rows in a mounted window live under the mount address
+		segments.unshift (theScope.address);
 		}
 	return (segments.join ("."));
 	}
@@ -157,11 +245,10 @@ function showError (err) {
 
 //window state -- what was expanded and where the scroll was, so the window comes back the way it was left
 	var theScrollTimer; //assigned by the scroll handler
-	const stateKey = "odbBrowserState";
-	var theState = readState ();
+	var theState; //assigned at startup, once the scope is known -- each window keeps its own
 	function readState () {
 		try {
-			const jstruct = JSON.parse (localStorage.getItem (stateKey));
+			const jstruct = JSON.parse (localStorage.getItem (scopeStateKey ()));
 			if ((jstruct !== null) && (Array.isArray (jstruct.expandedIds))) {
 				return (jstruct);
 				}
@@ -171,7 +258,7 @@ function showError (err) {
 		return ({expandedIds: [], scrollTop: 0});
 		}
 	function writeState () {
-		localStorage.setItem (stateKey, JSON.stringify (theState));
+		localStorage.setItem (scopeStateKey (), JSON.stringify (theState));
 		}
 	function recordExpanded (theId) {
 		if (theState.expandedIds.indexOf (theId) === -1) {

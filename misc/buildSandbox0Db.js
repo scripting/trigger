@@ -175,6 +175,41 @@ const sqlite3 = require ("better-sqlite3");
 		});
 	copyAll ();
 
+/*  The files table -- which logical database each top-level name belongs
+	to, the way the kernel's compiler files table tracks open guests. The
+	storage is one merged SQL file, but the WINDOWS follow databases (DW,
+	8/8): nodeEditor.root's tables are one window, config is the window
+	config.root, and system/user/scratchpad are the main root,
+	sandbox0.root. The browser reads this through /getdatabases.
+
+	A database claims its top level either by mount address (adr) or by
+	name list (names) -- nodeEditor.root's names are whatever the root
+	holds beyond the four standard tables, computed rather than listed so
+	a new export in the build folder lands in the right window.  */
+
+	const standardNames = ["config", "system", "user", "scratchpad"];
+	const guestNames = [];
+	newDb.prepare ("select name from odb where parentid = 0 order by lowername").all ().forEach (function (theRow) {
+		if (standardNames.indexOf (theRow.name) === -1) {
+			guestNames.push (theRow.name);
+			}
+		});
+
+	const idFiles = ensureNewTable ("system.compiler.files");
+	function addFileRecord (theName, theAddress, theNames) {
+		const existing = newChild.get (idFiles, theName.toLowerCase ());
+		if (existing !== undefined) {
+			deleteNewSubtree (existing.id);
+			}
+		const idRecord = newInsert.run (idFiles, theName, theName.toLowerCase (), "table", undefined).lastInsertRowid;
+		newInsert.run (idRecord, "adr", "adr", "string", theAddress);
+		newInsert.run (idRecord, "names", "names", "list", JSON.stringify (theNames));
+		}
+	addFileRecord ("nodeEditor.root", "", guestNames);
+	addFileRecord ("config.root", "config", []);
+	addFileRecord ("sandbox0.root", "", ["system", "user", "scratchpad"]);
+	console.log ("Wrote system.compiler.files -- nodeEditor.root owns " + guestNames.length + " tables.");
+
 	const ctTotal = newDb.prepare ("select count (*) as ct from odb").get ().ct;
 	console.log ("Done. " + ctTotal + " rows in " + pathNewDb + ".");
 

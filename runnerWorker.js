@@ -181,6 +181,13 @@ const theAnswerBytes = new Uint8Array (workerData.sharedData);
 				throw new Error (message);
 				}
 			const theQuestion = {kind: "edit", address: theAddress.pathText};
+			var theObject = theAddress.reference.get (); //a table opens a table window; scripts and outlines open the editor
+			if ((theObject !== undefined) && (theObject !== null) && (typeof theObject === "object") &&
+				(theObject.flOdbScript === undefined) && (theObject.flOdbMenubar === undefined) &&
+				(theObject.flWpText === undefined) && (theObject.flOdbAddressText === undefined) &&
+				(theObject.flAddress === undefined) && (theObject.type === undefined) && (!Array.isArray (theObject))) {
+				theQuestion.objectType = "table";
+				}
 			if (args [1] !== undefined) {
 				theQuestion.title = String (args [1]);
 				}
