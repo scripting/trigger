@@ -1,0 +1,137 @@
+/*  buildSandbox0Db.js -- build the database for sandbox0.usertalk.org.
+
+	The sandbox database is built odbHome-style from a folder --
+	data/sandbox0odb/ -- which holds nodeEditor.root. When DW supplies
+	exports (the custom menu, say), they go in that folder and this
+	script runs again.
+
+	Then three subtrees come over from the old layered odb.db by direct
+	SQL row copy, never decoding values (the 8/4 performance lesson,
+	and it means the copy is exact):
+
+	1. config.nodeEditor.projects -- the projects table, 519 projects.
+	2. user.menus -- customMenu is an undecoded marker in odb.db, so the
+	   real menu must come from a DW export later; the table comes over
+	   anyway so the browser shows where it lands.
+	3. user.prefs -- 41 entries.
+
+	Output: data/sandbox0.db. Run from the trigger folder:
+	node misc/buildSandbox0Db.js
+
+	by CC, 8/8/26 */
+
+const fs = require ("fs");
+const pathTool = require ("path");
+
+const folderTrigger = pathTool.resolve (__dirname, "..");
+const folderOdb = pathTool.join (folderTrigger, "data", "sandbox0odb");
+const pathRootOriginal = "/Users/davewiner/Claude/daveMigrates/misc/nodeEditor.root";
+const pathOldOdb = pathTool.join (folderTrigger, "data", "odb.db");
+const pathNewDb = pathTool.join (folderTrigger, "data", "sandbox0.db");
+
+const odbSql = require (pathTool.join (folderTrigger, "..", "usertalk", "code", "odbSql.js"));
+const sqlite3 = require ("better-sqlite3");
+
+//the build folder: create it and put nodeEditor.root in it if it's not already there
+	fs.mkdirSync (folderOdb, {recursive: true});
+	const pathRootCopy = pathTool.join (folderOdb, "nodeEditor.root");
+	if (!fs.existsSync (pathRootCopy)) {
+		fs.copyFileSync (pathRootOriginal, pathRootCopy);
+		console.log ("Copied nodeEditor.root into " + folderOdb + ".");
+		}
+
+//phase 1: the roots become the database
+	odbSql.buildDatabase (folderOdb, pathNewDb, function (message) {
+		console.log (message);
+		});
+
+//phase 2: the three subtrees come over from the old odb.db
+	const oldDb = new sqlite3 (pathOldOdb, {readonly: true});
+	const newDb = new sqlite3 (pathNewDb);
+
+	const oldChild = oldDb.prepare ("select id, name, lowername, type, value from odb where parentid = ? and lowername = ?");
+	const oldChildren = oldDb.prepare ("select id, name, lowername, type, value from odb where parentid = ? order by id");
+	const newChild = newDb.prepare ("select id, name, type from odb where parentid = ? and lowername = ?");
+	const newInsert = newDb.prepare ("insert into odb (parentid, name, lowername, type, value) values (?, ?, ?, ?, ?)");
+
+	function findOldRow (thePath) { //walk a dotted path in the old database, answer the row
+		var current = {id: 0};
+		thePath.split (".").forEach (function (part) {
+			if (current !== undefined) {
+				current = oldChild.get (current.id, part.toLowerCase ());
+				}
+			});
+		if (current === undefined) {
+			const message = "Can't copy " + thePath + " because it isn't in the old database.";
+			throw new Error (message);
+			}
+		return (current);
+		}
+
+	function ensureNewTable (thePath) { //walk a dotted path in the new database, creating tables, answer the id
+		var currentId = 0;
+		thePath.split (".").forEach (function (part) {
+			const existing = newChild.get (currentId, part.toLowerCase ());
+			if (existing === undefined) {
+				currentId = newInsert.run (currentId, part, part.toLowerCase (), "table", undefined).lastInsertRowid;
+				}
+			else {
+				if (existing.type !== "table") {
+					const message = "Can't create the table " + thePath + " because " + part + " already exists and isn't a table.";
+					throw new Error (message);
+					}
+				currentId = existing.id;
+				}
+			});
+		return (currentId);
+		}
+
+	function deleteNewSubtree (theId) { //remove a row and everything under it
+		const kids = newDb.prepare ("select id from odb where parentid = ?").all (theId);
+		kids.forEach (function (theKid) {
+			deleteNewSubtree (theKid.id);
+			});
+		newDb.prepare ("delete from odb where id = ?").run (theId);
+		}
+
+	var ctCopied; //counted by copyRows, reported per subtree
+
+	function copyRows (oldParentId, newParentId) {
+		oldChildren.all (oldParentId).forEach (function (theRow) {
+			const newId = newInsert.run (newParentId, theRow.name, theRow.lowername, theRow.type, theRow.value).lastInsertRowid;
+			ctCopied++;
+			if (theRow.type === "table") {
+				copyRows (theRow.id, newId);
+				}
+			});
+		}
+
+	function copySubtree (oldPath, newParentPath) {
+		const oldRow = findOldRow (oldPath);
+		const newParentId = ensureNewTable (newParentPath);
+		const existing = newChild.get (newParentId, oldRow.lowername);
+		if (existing !== undefined) {
+			deleteNewSubtree (existing.id);
+			console.log ("Replaced the existing " + newParentPath + "." + oldRow.name + ".");
+			}
+		ctCopied = 0;
+		const newId = newInsert.run (newParentId, oldRow.name, oldRow.lowername, oldRow.type, oldRow.value).lastInsertRowid;
+		ctCopied++;
+		if (oldRow.type === "table") {
+			copyRows (oldRow.id, newId);
+			}
+		console.log ("Copied " + oldPath + " into " + newParentPath + " -- " + ctCopied + " rows.");
+		}
+
+	const copyAll = newDb.transaction (function () {
+		copySubtree ("config.nodeEditor.projects", "config.nodeEditor");
+		copySubtree ("user.menus", "user");
+		copySubtree ("user.prefs", "user");
+		});
+	copyAll ();
+
+	const ctTotal = newDb.prepare ("select count (*) as ct from odb").get ().ct;
+	console.log ("Done. " + ctTotal + " rows in " + pathNewDb + ".");
+
+	oldDb.close ();
+	newDb.close ();

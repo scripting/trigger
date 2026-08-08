@@ -1,3 +1,13 @@
+#### 8/8/26; 1:45:00 PM by CC
+
+sandbox0.usertalk.org is live on marin -- the sandbox for the new Frontier, step 1 of the plan. DW named it and pointed the DNS at marin. It's a second trigger instance in its own pagepark domain folder, serving the odb browser and concord, with its own database and its own pair of sandbox-only passwords.
+
+The database is built by misc/buildSandbox0Db.js: odbHome-style from data/sandbox0odb/ (nodeEditor.root), then config.nodeEditor.projects (519 projects), user.menus and user.prefs copied over from the old layered odb.db by direct SQL row copy -- values never decoded, so the copy is exact. One gap: user.menus.customMenu is an undecoded marker in that database, so the real menu has to come from a DW export; the folder is where it goes, then rebuild.
+
+Along the way, usertalk 0.3.1: the language constants no longer persist into every SQL database the evaluator touches -- they resolve at lookup time now -- and temp is a true alias of system.temp instead of a copy that silently diverged. The sandbox root shows exactly the 14 tables DW recognizes, nothing else.
+
+Deploy notes for next time: pagepark launches any domains folder that has a package.json, but it only scans at boot -- or when you ask, curl the CLI port, localhost:1349/rescan. The deploy script (misc/marinDeploySandbox0.js) ships the manifest as packageJson.hold and renames it as the last step so a half-built folder can't launch.
+
 #### 8/7/26; 2:05:33 PM by CC
 
 Rewrote readme.md to describe the product as it is now -- the odb browser, the script windows and their buttons, dialogs, the desktop app, and the two-password permission split. It still described the 7/30 server, one endpoint and one password, and the repo is public now.
