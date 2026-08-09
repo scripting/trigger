@@ -4,23 +4,15 @@ body {
 	margin: 0;
 	}
 
-.divWindow {
-	max-width: 1000px;
-	margin: 30px auto;
+.divWindow { /*the page IS the window -- the desktop window frames it, so no inner box, no second title bar (DW, 8/9)*/
 	background-color: white;
-	border: 1px solid silver;
-	border-radius: 6px;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
 	}
 
-.divWindowTitle {
-	text-align: center;
-	font-size: 13px;
-	color: #555555;
-	padding: 6px;
-	background-color: #f0f0f0;
-	border-bottom: 1px solid silver;
+.divWindowTitle { /*the title lives in the real window's title bar; this element only feeds document.title*/
+	display: none;
 	}
 
 .divButtonBar {
@@ -136,9 +128,9 @@ body {
 	text-decoration: underline;
 	}
 
-.divOutlinerContainer {
-	min-height: 500px;
-	max-height: 80vh;
+.divOutlinerContainer { /*fills whatever's left of the window; the outline scrolls inside it, the column heads stay put*/
+	flex: 1;
+	min-height: 0;
 	overflow: auto;
 	padding: 8px;
 	}
