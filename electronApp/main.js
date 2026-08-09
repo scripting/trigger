@@ -145,9 +145,22 @@ function serverJson (thePath, theBody, callback) { //one transport primitive for
 	theRequest.end ();
 	}
 
-function borrowPassword (theWindow, callback) { //the page asks the person once and saves it; the app reads the same saved value
+function borrowPassword (callback) { //the page asks the person once and saves it; the app reads the same saved value
+
+	/*  8/9/26 by CC -- any live window will do, and the poll never gives
+		up while the app runs: the first version watched only the first
+		window, and if that one was closed before the person connected, the
+		menubar silently never arrived.  */
+
 	function poll () {
-		if (theWindow.isDestroyed ()) {
+		var theWindow;
+		openWindows.forEach (function (openWindow) {
+			if ((theWindow === undefined) && !openWindow.isDestroyed ()) {
+				theWindow = openWindow;
+				}
+			});
+		if (theWindow === undefined) {
+			setTimeout (poll, 1000);
 			return;
 			}
 		theWindow.webContents.executeJavaScript ("localStorage.getItem (\"odbBrowserPassword\")").then (function (theValue) {
@@ -287,23 +300,34 @@ function fileMenuTemplate (callback) { //File lists the databases -- each one op
 	}
 
 function installMenubar () {
+
+	/*  8/9/26 by CC -- keeps trying until the menubar is really up: one
+		failed fetch used to mean no menus for the whole session.  */
+
 	serverJson ("/getmenubar", undefined, function (err, data) {
 		if (err !== undefined) {
-			console.log ("Can't build the menubar because " + err.message);
+			console.log ("Can't build the menubar yet (" + err.message + ") -- trying again in 5 seconds.");
+			setTimeout (installMenubar, 5000);
 			return;
 			}
 		const customMenus = menuTemplateFromLines (data.lines);
 		evaluateMenuTitles (customMenus, function () {
 			fileMenuTemplate (function (theFileMenu) {
-				const theTemplate = [
-					{role: "appMenu"},
-					theFileMenu,
-					{role: "editMenu"},
-					{role: "viewMenu"}
-					].concat (customMenus).concat ([
-					{role: "windowMenu"}
-					]);
-				Menu.setApplicationMenu (Menu.buildFromTemplate (theTemplate));
+				try {
+					const theTemplate = [
+						{role: "appMenu"},
+						theFileMenu,
+						{role: "editMenu"},
+						{role: "viewMenu"}
+						].concat (customMenus).concat ([
+						{role: "windowMenu"}
+						]);
+					Menu.setApplicationMenu (Menu.buildFromTemplate (theTemplate));
+					console.log ("menubar installed -- " + customMenus.length + " custom menus");
+					}
+				catch (buildErr) {
+					console.log ("Can't install the menubar because " + buildErr.message);
+					}
 				});
 			});
 		});
@@ -388,12 +412,10 @@ app.whenReady ().then (function () {
 		theState.windows.forEach (function (savedWindow) {
 			createWindow (savedWindow.url, savedWindow.bounds);
 			});
-		if (openWindows.length > 0) { //the menubar comes up as soon as the saved connection is readable
-			borrowPassword (openWindows [0], function (theValue) {
-				thePassword = theValue;
-				installMenubar ();
-				});
-			}
+		borrowPassword (function (theValue) { //the menubar comes up as soon as the saved connection is readable
+			thePassword = theValue;
+			installMenubar ();
+			});
 		});
 	});
 
