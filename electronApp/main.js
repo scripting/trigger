@@ -1,12 +1,48 @@
 const {app, BrowserWindow, Menu} = require ("electron");
 const http = require ("http");
+const https = require ("https");
 const childProcess = require ("child_process");
 const fs = require ("fs");
 const pathTool = require ("path");
 
-const urlServer = "http://localhost:1680";
-const urlBrowsePage = urlServer + "/odbbrowser/";
+/*  Which server -- 8/9/26 by CC. A packaged copy of the app is a window
+	onto the sandbox on marin: nothing to install beside it, it just
+	connects. Running from the repo (npm start) keeps the developer loop --
+	find or spawn the local server. A serverUrl in appConfig.json in the
+	app's data folder overrides either, so any copy can be pointed
+	anywhere.  */
+
+const urlSandbox = "https://sandbox0.usertalk.org";
+var urlServer = "http://localhost:1680"; //assigned for real at ready
+var urlBrowsePage; //assigned at ready, from urlServer
 const folderTrigger = pathTool.resolve (__dirname, "..");
+
+function chooseServer () {
+	if ((process.env.ODB_SERVER_URL !== undefined) && (process.env.ODB_SERVER_URL.length > 0)) { //for testing a copy against any server
+		return (process.env.ODB_SERVER_URL);
+		}
+	try {
+		const theConfig = JSON.parse (fs.readFileSync (pathTool.join (app.getPath ("userData"), "appConfig.json"), "utf8"));
+		if ((typeof theConfig.serverUrl === "string") && (theConfig.serverUrl.length > 0)) {
+			return (theConfig.serverUrl);
+			}
+		}
+	catch (err) {
+		}
+	if (app.isPackaged) {
+		return (urlSandbox);
+		}
+	return ("http://localhost:1680");
+	}
+
+function flLocalServer () {
+	return (urlServer.indexOf ("http://localhost") === 0);
+	}
+
+function webRequest (theUrl, theOptions, callback) { //http or https, whichever the url says
+	const theModule = (theUrl.indexOf ("https:") === 0) ? https : http;
+	return (theModule.request (theUrl, theOptions, callback));
+	}
 
 var theServerProcess; //assigned by startServer, only if no server was already answering
 var pathWindowState; //assigned at ready -- userData isn't known before then
@@ -15,25 +51,30 @@ var theSaveTimer;
 var thePassword; //assigned by borrowPassword -- the same saved value the browse page asked for
 
 function checkServer (callback) { //flUp
-	const theRequest = http.get (urlServer + "/version", function (theResponse) {
+	const theRequest = webRequest (urlServer + "/version", {method: "GET"}, function (theResponse) {
 		theResponse.resume ();
 		callback (theResponse.statusCode === 200);
 		});
 	theRequest.on ("error", function () {
 		callback (false);
 		});
-	theRequest.setTimeout (1000, function () {
+	theRequest.setTimeout (2500, function () {
 		theRequest.destroy ();
 		callback (false);
 		});
+	theRequest.end ();
 	}
 
-function startServer (callback) { //use the running server if there is one, else launch our own
+function startServer (callback) { //a remote server just has to answer; a local one we find running or launch ourselves
 	checkServer (function (flUp) {
 		if (flUp) {
 			callback ();
 			}
 		else {
+			if (!flLocalServer ()) { //nothing to launch -- open the window anyway, the page says what's wrong
+				callback ();
+				return;
+				}
 			theServerProcess = childProcess.spawn ("node", ["trigger.js"], {
 				cwd: folderTrigger,
 				env: Object.assign ({}, process.env, {NODE_PATH: pathTool.join (folderTrigger, "node_modules")})
@@ -74,7 +115,7 @@ function serverJson (thePath, theBody, callback) { //one transport primitive for
 		method: (theBody === undefined) ? "GET" : "POST",
 		headers: {"x-trigger-password": thePassword}
 		};
-	const theRequest = http.request (urlServer + thePath, theOptions, function (theResponse) {
+	const theRequest = webRequest (urlServer + thePath, theOptions, function (theResponse) {
 		var theText = "";
 		theResponse.on ("data", function (chunk) {
 			theText += chunk;
@@ -279,6 +320,10 @@ function readWindowState () {
 		const jstruct = JSON.parse (fs.readFileSync (pathWindowState, "utf8"));
 		if (Array.isArray (jstruct.windows) && (jstruct.windows.length > 0)) {
 			jstruct.windows.forEach (function (savedWindow) {
+				const ixPath = savedWindow.url.indexOf ("/odbbrowser/");
+				if (ixPath !== -1) { //windows follow the app to whatever server it talks to now
+					savedWindow.url = urlServer + savedWindow.url.slice (ixPath);
+					}
 				if ((savedWindow.url === urlBrowsePage) || (savedWindow.url === urlBrowsePage + "index.html")) {
 					savedWindow.url = urlDefaultWindow;
 					}
@@ -335,6 +380,8 @@ function createWindow (theUrl, theBounds) {
 	}
 
 app.whenReady ().then (function () {
+	urlServer = chooseServer ();
+	urlBrowsePage = urlServer + "/odbbrowser/";
 	pathWindowState = pathTool.join (app.getPath ("userData"), "windowState.json");
 	startServer (function () {
 		const theState = readWindowState ();

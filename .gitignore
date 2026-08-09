@@ -3,3 +3,4 @@ data/
 .DS_Store
 *.bak*
 electronApp/node_modules/
+electronApp/dist/

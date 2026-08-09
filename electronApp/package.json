@@ -9,6 +9,7 @@
 	"author": "Dave Winer <dave@scripting.com>",
 	"license": "GPL-2.0",
 	"devDependencies": {
-		"electron": "^22.3.27"
+		"electron": "^22.3.27",
+		"electron-packager": "^17.1.2"
 	}
 }
