@@ -32,11 +32,11 @@ $(document).ready (function () {
 	if ((theButtonsAddress !== null) && (theButtonsAddress.length > 0)) {
 		buildOdbButtons (theButtonsAddress);
 		}
-	$("#divOutliner").concord ({
+	$("#divOutliner").concord ({ //13/21 -- the OPML Editor's text, measured off DW's screenshot (8/9)
 		prefs: {
 			outlineFont: "Lucida Grande",
-			outlineFontSize: 14,
-			outlineLineHeight: 24,
+			outlineFontSize: 13,
+			outlineLineHeight: 21,
 			renderMode: false,
 			readonly: flReadonly
 			}
