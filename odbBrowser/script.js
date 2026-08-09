@@ -43,29 +43,7 @@ $(document).ready (function () {
 		});
 	serverCall ("/downloadobject", {address: theAddress}, "GET", function (err, data) {
 		if (err !== undefined) {
-			if (err.message.indexOf ("there is no object at that address") !== -1) {
-
-				/*  8/9/26 by CC -- a new object: the window opens empty,
-					typing is drafting, Save creates it -- naming a thing
-					is how it comes to exist, the Frontier way. The server
-					creates any missing tables on the path.  */
-
-				theScriptType = "script";
-				const theDraft = localStorage.getItem (draftKey ());
-				if (theDraft !== null) { //typed here before, never saved
-					$("#divOutliner").concord ().op.xmlToOutline (theDraft, false);
-					}
-				else { //one empty line, so there's somewhere to type
-					$("#divOutliner").concord ().op.xmlToOutline ("<?xml version=\"1.0\"?><opml version=\"2.0\"><head></head><body><outline text=\"\"/></body></opml>", false);
-					}
-				showDirty (true);
-				showStatus ("New script — Save creates it at " + theAddress + "."); //em dash
-				theLastSeenBody = opmlBody (currentOpml ());
-				setInterval (autosaveCheck, 1500);
-				}
-			else {
-				showStatus (err.message);
-				}
+			showStatus (err.message);
 			}
 		else {
 			theScriptType = data.scriptType;

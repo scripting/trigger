@@ -1,10 +1,10 @@
 #### 8/9/26; 2:00:00 PM by CC
 
-Jump, cmd-J, in the File menu -- DW: "jump command is essential." A dialog asks where; the edit verb takes it from there, so tables open table windows and scripts open the editor. One window per object now: jumping or double-clicking to something already open brings its window to front instead of making a second one.
+One window per object: opening something already open brings its window to front instead of making a second one -- for the edit verb, for double-clicked scripts, for the File menu's databases.
 
-And Jump is how you create things, the Frontier way: jump to an address with nothing there and a NEW SCRIPT window opens -- one empty line waiting, typing is drafting, Save creates the object, the server making any missing tables on the path. Proven end to end: jumped to workspace.testJumpScript (no workspace table existed), typed, saved, defined () answered true. One quirk noted on the pile: a script whose body is a bare expression (no "on" handler) doesn't answer its value when called -- same family as the if-value quirk.
+The script window's buttons are centered with air between them, the status small in the left corner, and the outline text is 13/21 -- measured against DW's OPML Editor screenshot. The packaged app rebuilt with all of it; same zip path for Berkeley.
 
-Also: the script window's buttons are centered with air between them, the status small in the left corner, and the outline text is 13/21 -- measured against DW's OPML Editor screenshot. The packaged app rebuilt with all of it (menubar resilience, Jump, one-window-per-object); same zip path for Berkeley.
+Two things I built and took back out the same hour, because I answered a question DW asked to start a discussion instead of discussing it: a Jump command in the File menu, and creating a new object by jumping to an address that doesn't exist. DW: "don't invent user interface. ask questions... we're going to build on 38 years of UI continuity." Cmd-J is right and Jump is his to write in a script -- dialog.ask and edit are both live, which is all it needs. Jump belongs in Misc, a menu this app doesn't have yet. The real gesture for making an object, from him: cursor in the table, press Return, a new item appears named "item #1"; type the name; scalars get their value in the second column; for anything else, double-click the WEDGE (anywhere else is a text action) and a dialog asks which non-scalar type -- Table, Outline, WP-Text, Script, Picture, MenuBar.
 
 #### 8/9/26; 1:00:00 PM by CC
 

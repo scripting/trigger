@@ -104,46 +104,6 @@ function runMenuScript (theScriptText) { //runs a menu command's script; dialogs
 	serverCall ("/run", {interactive: "1", opmltext: theScriptText}, "POST", handleRunAnswer);
 	}
 
-function jumpCommand () { //Frontier's Jump: name a place and a window opens on it
-
-	/*  8/9/26 by CC -- asks for an address, then opens it through the edit
-		verb, so tables get table windows and scripts get the editor. The
-		app fronts an already-open window instead of opening it twice. An
-		address with nothing there yet opens a NEW script window -- naming
-		the thing is how you create it, Save is what makes it real.  */
-
-	const divMask = $("<div class=\"divDialogMask\"></div>");
-	const divDialog = $("<div class=\"divDialog\"></div>");
-	divDialog.append ($("<div class=\"divDialogPrompt\"></div>").text ("Jump to:"));
-	const inputAnswer = $("<input type=\"text\" class=\"inputDialogAnswer\" placeholder=\"user.prefs, workspace.myScript, …\">");
-	divDialog.append (inputAnswer);
-	const divButtons = $("<div class=\"divDialogButtons\"></div>");
-	function jump () {
-		const theAddress = inputAnswer.val ().trim ().replace (/^@/, "");
-		divMask.remove ();
-		if (theAddress.length > 0) {
-			runMenuScript ("edit (@" + theAddress + ")");
-			}
-		}
-	const buttonCancel = $("<button class=\"buttonBar\">Cancel</button>").click (function () {
-		divMask.remove ();
-		});
-	divButtons.append (buttonCancel);
-	const buttonOk = $("<button class=\"buttonBar buttonDefault\">Jump</button>").click (jump);
-	divButtons.append (buttonOk);
-	divDialog.append (divButtons);
-	divMask.append (divDialog);
-	$("body").append (divMask);
-	inputAnswer.focus ().keydown (function (event) {
-		if (event.which === 13) { //return key
-			jump ();
-			}
-		if (event.which === 27) { //escape
-			divMask.remove ();
-			}
-		});
-	}
-
 function showLocalAlert (theText) { //an error big enough to actually see; no server round trip, OK just closes it
 	const divMask = $("<div class=\"divDialogMask\"></div>");
 	const divDialog = $("<div class=\"divDialog\"></div>");

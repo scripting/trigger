@@ -329,20 +329,9 @@ function openOrFrontWindow (theUrl) { //the one-window-per-object contract, for 
 	createWindow (theUrl);
 	}
 
-function fileMenuTemplate (callback) { //File: Jump, then the databases -- each opens as its own window, DW's model
+function fileMenuTemplate (callback) { //File lists the databases -- each one opens as its own window, DW's model
 	serverJson ("/getdatabases", undefined, function (err, data) {
 		const items = [];
-		items.push ({
-			label: "Jump…", //horizontal ellipsis
-			accelerator: "CommandOrControl+J",
-			click: function () {
-				const theWindow = frontWindow ();
-				if (theWindow !== undefined) {
-					theWindow.webContents.executeJavaScript ("jumpCommand ()").catch (function () {});
-					}
-				}
-			});
-		items.push ({type: "separator"});
 		if ((err === undefined) && (data.databases.length > 0)) {
 			data.databases.forEach (function (theDatabase) {
 				items.push ({
