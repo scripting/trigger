@@ -1,3 +1,7 @@
+#### 8/9/26; 1:00:00 PM by CC
+
+The app is a real app now. electron-packager builds odbdesktop.app for Intel Macs back to High Sierra -- built for Berkeley, DW's iMac Pro that runs the OPML Editor. A packaged copy connects to sandbox0.usertalk.org out of the box: no node, no server, no terminal, just an app in the dock -- the answer to "how do i see this as normal." Running from the repo keeps the developer loop against the local server, an appConfig.json in the app's data folder can point any copy anywhere, and saved windows follow the app to whatever server it talks to now. The zip for Berkeley is electronApp/dist/odbdesktopForBerkeley.zip; dist stays out of the repo.
+
 #### 8/9/26; 12:00:00 PM by CC
 
 SAVE WORKS, ALL THE WAY THROUGH. DW answered the fork: use the real worldOutlineSuite, and pointed at daveMigrates/apps/active -- his four active apps, fresh exports. The build now takes every .root in that folder -- manila, nodeEditor, worldOutline, xmlRpc -- reads each one's top-level names for the files table, and each app is its own window: six databases, 273,719 rows. One interpreter fix on the way: with takes a comma-separated LIST of tables (usertalk 0.3.4), which worldOutlineSuite.processMacros led with.
