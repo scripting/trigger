@@ -107,10 +107,11 @@ body {
 	border-bottom: 1px solid black;
 	}
 
-.spanHeadName {
+.spanHeadName { /*margin 0 on all three: a shared stylesheet gives spans a margin that would push a title off its column*/
 	position: absolute;
 	top: 6px;
 	left: 40px;
+	margin: 0;
 	text-decoration: underline;
 	}
 
@@ -118,6 +119,7 @@ body {
 	position: absolute;
 	top: 6px;
 	left: 430px;
+	margin: 0;
 	text-decoration: underline;
 	}
 
@@ -125,6 +127,7 @@ body {
 	position: absolute;
 	top: 6px;
 	left: 740px;
+	margin: 0;
 	text-decoration: underline;
 	}
 
