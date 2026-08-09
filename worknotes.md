@@ -1,3 +1,11 @@
+#### 8/9/26; 2:00:00 PM by CC
+
+Jump, cmd-J, in the File menu -- DW: "jump command is essential." A dialog asks where; the edit verb takes it from there, so tables open table windows and scripts open the editor. One window per object now: jumping or double-clicking to something already open brings its window to front instead of making a second one.
+
+And Jump is how you create things, the Frontier way: jump to an address with nothing there and a NEW SCRIPT window opens -- one empty line waiting, typing is drafting, Save creates the object, the server making any missing tables on the path. Proven end to end: jumped to workspace.testJumpScript (no workspace table existed), typed, saved, defined () answered true. One quirk noted on the pile: a script whose body is a bare expression (no "on" handler) doesn't answer its value when called -- same family as the if-value quirk.
+
+Also: the script window's buttons are centered with air between them, the status small in the left corner, and the outline text is 13/21 -- measured against DW's OPML Editor screenshot. The packaged app rebuilt with all of it (menubar resilience, Jump, one-window-per-object); same zip path for Berkeley.
+
 #### 8/9/26; 1:00:00 PM by CC
 
 The app is a real app now. electron-packager builds odbdesktop.app for Intel Macs back to High Sierra -- built for Berkeley, DW's iMac Pro that runs the OPML Editor. A packaged copy connects to sandbox0.usertalk.org out of the box: no node, no server, no terminal, just an app in the dock -- the answer to "how do i see this as normal." Running from the repo keeps the developer loop against the local server, an appConfig.json in the app's data folder can point any copy anywhere, and saved windows follow the app to whatever server it talks to now. The zip for Berkeley is electronApp/dist/odbdesktopForBerkeley.zip; dist stays out of the repo.

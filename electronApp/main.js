@@ -177,7 +177,7 @@ function borrowPassword (callback) { //the page asks the person once and saves i
 	poll ();
 	}
 
-function runMenuCommand (theLine) { //the command's script runs in the frontmost window, dialogs and all
+function frontWindow () { //the focused window, or any live one
 	var theWindow = BrowserWindow.getFocusedWindow ();
 	if (theWindow === null) {
 		theWindow = undefined;
@@ -189,12 +189,52 @@ function runMenuCommand (theLine) { //the command's script runs in the frontmost
 				}
 			});
 		}
+	return (theWindow);
+	}
+
+function runMenuCommand (theLine) { //the command's script runs in the frontmost window, dialogs and all
+	const theWindow = frontWindow ();
 	if (theWindow === undefined) {
 		return;
 		}
 	theWindow.webContents.executeJavaScript ("runMenuScript (" + JSON.stringify (theLine.scriptOpml) + ")").catch (function (err) {
 		console.log ("Can't run the menu command " + theLine.text + " because " + err.message);
 		});
+	}
+
+/*  One window per object -- 8/9/26 by CC. A window is keyed by what it
+	shows (the address or database in its url, titles aside), so opening
+	something already open brings its window to front instead of making a
+	second one. That's Jump's contract, and double-clicked scripts get the
+	same manners.  */
+
+function windowKeyForUrl (theUrl) {
+	try {
+		const parsed = new URL (theUrl);
+		const theAddress = parsed.searchParams.get ("address");
+		if (theAddress !== null) {
+			return (parsed.pathname + "?address=" + theAddress);
+			}
+		const theDatabase = parsed.searchParams.get ("database");
+		if (theDatabase !== null) {
+			return (parsed.pathname + "?database=" + theDatabase);
+			}
+		return (parsed.pathname + parsed.search);
+		}
+	catch (err) {
+		return (theUrl);
+		}
+	}
+
+function findWindowShowing (theUrl) {
+	const theKey = windowKeyForUrl (theUrl);
+	var found;
+	openWindows.forEach (function (openWindow) {
+		if ((found === undefined) && !openWindow.isDestroyed () && (windowKeyForUrl (openWindow.webContents.getURL ()) === theKey)) {
+			found = openWindow;
+			}
+		});
+	return (found);
 	}
 
 function menuTemplateFromLines (theLines) { //the flat lines with levels become nested menus
@@ -280,15 +320,35 @@ function evaluateMenuTitles (customMenus, callback) { //a menu named "=expressio
 	doNext ();
 	}
 
-function fileMenuTemplate (callback) { //File lists the databases -- each one opens as its own window, DW's model
+function openOrFrontWindow (theUrl) { //the one-window-per-object contract, for windows the app opens itself
+	const theExisting = findWindowShowing (theUrl);
+	if (theExisting !== undefined) {
+		theExisting.focus ();
+		return;
+		}
+	createWindow (theUrl);
+	}
+
+function fileMenuTemplate (callback) { //File: Jump, then the databases -- each opens as its own window, DW's model
 	serverJson ("/getdatabases", undefined, function (err, data) {
 		const items = [];
+		items.push ({
+			label: "Jump…", //horizontal ellipsis
+			accelerator: "CommandOrControl+J",
+			click: function () {
+				const theWindow = frontWindow ();
+				if (theWindow !== undefined) {
+					theWindow.webContents.executeJavaScript ("jumpCommand ()").catch (function () {});
+					}
+				}
+			});
+		items.push ({type: "separator"});
 		if ((err === undefined) && (data.databases.length > 0)) {
 			data.databases.forEach (function (theDatabase) {
 				items.push ({
 					label: theDatabase.name,
 					click: function () {
-						createWindow (urlBrowsePage + "?database=" + encodeURIComponent (theDatabase.name));
+						openOrFrontWindow (urlBrowsePage + "?database=" + encodeURIComponent (theDatabase.name));
 						}
 					});
 				});
@@ -385,7 +445,12 @@ function trackWindow (theWindow) {
 	theWindow.on ("move", saveSoon);
 	theWindow.on ("resize", saveSoon);
 	theWindow.on ("close", saveWindowState); //synchronous -- a debounced save can lose the race against quit
-	theWindow.webContents.setWindowOpenHandler (function () { //a double-clicked script opens a real window
+	theWindow.webContents.setWindowOpenHandler (function (details) { //a double-clicked script opens a real window -- unless it's already open, then it comes to front
+		const theExisting = findWindowShowing (details.url);
+		if (theExisting !== undefined) {
+			theExisting.focus ();
+			return ({action: "deny"});
+			}
 		return ({action: "allow"});
 		});
 	theWindow.webContents.on ("did-create-window", function (childWindow) {
