@@ -1,3 +1,11 @@
+#### 8/9/26; 12:00:00 PM by CC
+
+SAVE WORKS, ALL THE WAY THROUGH. DW answered the fork: use the real worldOutlineSuite, and pointed at daveMigrates/apps/active -- his four active apps, fresh exports. The build now takes every .root in that folder -- manila, nodeEditor, worldOutline, xmlRpc -- reads each one's top-level names for the files table, and each app is its own window: six databases, 273,719 rows. One interpreter fix on the way: with takes a comma-separated LIST of tables (usertalk 0.3.4), which worldOutlineSuite.processMacros led with.
+
+Then the file boundary: the sandbox path map was empty by design, so Save stopped at the first write. The sandbox answer is a catch-all prefix -- every colon path the map doesn't cover lands inside the app's own files/renders folder, nothing escapes. With that in place, the Save button's whole chain runs: init, savemyroot, uploadScripts with real macro processing, the allservers-route copy, doBackup, and speaker.beep in the window at the end -- 8,191 verb calls, 688ms locally, proven again live on marin. The rendered code.js is byte-identical to the deployed sallysReader site; index.html differs only by the Testing menu DW added 8/4, which this database's copy of the project never received. That's the right difference to see.
+
+Also: the browse window's columns line up under their titles now, the rule below them, nothing overlapping -- measured at runtime, Name included (DW's request, with his Frontier screenshot as the spec). Trigger 0.5.7. Small wart for later: doBackup names its backup file "[object Object]sallysReader.0.opml" -- something non-string in the filename, probably the stubbed file.getDatePath.
+
 #### 8/8/26; 10:15:00 PM by CC
 
 The Zoom mystery, solved twice over. First: DW's click had worked all along -- the script ran and the can't-do-that message landed in the small status text, invisible from where he sat. A failed run now puts up a real dialog you can't miss, as well as the status line. Second, and better: Zoom doesn't fail anymore, because the editor verbs are alive -- trigger 0.5.6.

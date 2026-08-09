@@ -25,20 +25,47 @@ const pathTool = require ("path");
 
 const folderTrigger = pathTool.resolve (__dirname, "..");
 const folderOdb = pathTool.join (folderTrigger, "data", "sandbox0odb");
-const pathRootOriginal = "/Users/davewiner/Claude/daveMigrates/misc/nodeEditor.root";
+const folderActiveApps = "/Users/davewiner/Claude/daveMigrates/apps/active";
 const pathOldOdb = pathTool.join (folderTrigger, "data", "odb.db");
 const pathNewDb = pathTool.join (folderTrigger, "data", "sandbox0.db");
 
 const odbSql = require (pathTool.join (folderTrigger, "..", "usertalk", "code", "odbSql.js"));
+const frontierodb = require (pathTool.join (folderTrigger, "..", "frontierOdb", "frontierodb.js"));
 const sqlite3 = require ("better-sqlite3");
 
-//the build folder: create it and put nodeEditor.root in it if it's not already there
+/*  The build folder mirrors DW's OPML Editor environment: every .root in
+	daveMigrates/apps/active is one of his four active apps -- manila,
+	nodeEditor, worldOutline, xmlRpc (8/9/26, his folder, his call: "the
+	safest approach is to use the actual worldOutlineSuite function").
+	They're copied fresh every build, so a re-export lands on rebuild.  */
+
 	fs.mkdirSync (folderOdb, {recursive: true});
-	const pathRootCopy = pathTool.join (folderOdb, "nodeEditor.root");
-	if (!fs.existsSync (pathRootCopy)) {
-		fs.copyFileSync (pathRootOriginal, pathRootCopy);
-		console.log ("Copied nodeEditor.root into " + folderOdb + ".");
-		}
+	const rootFileNames = [];
+	fs.readdirSync (folderActiveApps).forEach (function (fname) {
+		if (fname.toLowerCase ().endsWith (".root")) {
+			fs.copyFileSync (pathTool.join (folderActiveApps, fname), pathTool.join (folderOdb, fname));
+			rootFileNames.push (fname);
+			console.log ("Copied " + fname + " into the build folder.");
+			}
+		});
+	rootFileNames.sort (); //the order odbHome merges them in -- later files win collisions
+
+/*  Which top-level names each database owns -- read before the merge, so
+	the files table can say which window each table belongs to. A name two
+	databases both carry belongs to the later one, matching the merge; the
+	four standard tables belong to the main root, never to a guest.  */
+
+	const standardNames = ["config", "system", "user", "scratchpad"];
+	const nameOwners = {}; //top-level name -> root file that owns it
+	rootFileNames.forEach (function (fname) {
+		const theTopLevel = frontierodb.readRootFile (pathTool.join (folderOdb, fname));
+		Object.keys (theTopLevel).forEach (function (name) {
+			if (standardNames.indexOf (name) === -1) {
+				nameOwners [name] = fname;
+				}
+			});
+		console.log (fname + " read for the files table.");
+		});
 
 /*  DW exports land in the folder too, mounted where their subfolder says.
 	The custom menu came as misc/menus.customMenu.ftmb (8/8/26); it mounts
@@ -178,22 +205,10 @@ const sqlite3 = require ("better-sqlite3");
 /*  The files table -- which logical database each top-level name belongs
 	to, the way the kernel's compiler files table tracks open guests. The
 	storage is one merged SQL file, but the WINDOWS follow databases (DW,
-	8/8): nodeEditor.root's tables are one window, config is the window
+	8/8): each active app is its own window, config is the window
 	config.root, and system/user/scratchpad are the main root,
-	sandbox0.root. The browser reads this through /getdatabases.
-
-	A database claims its top level either by mount address (adr) or by
-	name list (names) -- nodeEditor.root's names are whatever the root
-	holds beyond the four standard tables, computed rather than listed so
-	a new export in the build folder lands in the right window.  */
-
-	const standardNames = ["config", "system", "user", "scratchpad"];
-	const guestNames = [];
-	newDb.prepare ("select name from odb where parentid = 0 order by lowername").all ().forEach (function (theRow) {
-		if (standardNames.indexOf (theRow.name) === -1) {
-			guestNames.push (theRow.name);
-			}
-		});
+	sandbox0.root. The browser reads this through /getdatabases. The
+	ownership map was read from the root files themselves, up top.  */
 
 	const idFiles = ensureNewTable ("system.compiler.files");
 	function addFileRecord (theName, theAddress, theNames) {
@@ -205,10 +220,22 @@ const sqlite3 = require ("better-sqlite3");
 		newInsert.run (idRecord, "adr", "adr", "string", theAddress);
 		newInsert.run (idRecord, "names", "names", "list", JSON.stringify (theNames));
 		}
-	addFileRecord ("nodeEditor.root", "", guestNames);
+	rootFileNames.forEach (function (fname) {
+		const theNames = [];
+		Object.keys (nameOwners).forEach (function (name) {
+			if (nameOwners [name] === fname) {
+				theNames.push (name);
+				}
+			});
+		theNames.sort (function (a, b) {
+			return (a.toLowerCase () < b.toLowerCase () ? -1 : 1);
+			});
+		addFileRecord (fname, "", theNames);
+		console.log (fname + " owns " + theNames.length + " top-level tables.");
+		});
 	addFileRecord ("config.root", "config", []);
 	addFileRecord ("sandbox0.root", "", ["system", "user", "scratchpad"]);
-	console.log ("Wrote system.compiler.files -- nodeEditor.root owns " + guestNames.length + " tables.");
+	console.log ("Wrote system.compiler.files -- " + (rootFileNames.length + 2) + " databases.");
 
 	const ctTotal = newDb.prepare ("select count (*) as ct from odb").get ().ct;
 	console.log ("Done. " + ctTotal + " rows in " + pathNewDb + ".");

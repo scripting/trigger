@@ -106,26 +106,32 @@ body {
 	margin-left: 8px;
 	}
 
-.divColumnHeads {
+.divColumnHeads { /*the titles sit in their own band, the rule below them, nothing overlapping -- the columns are aligned under them at runtime*/
 	position: relative;
 	font-weight: bold;
 	font-size: 14px;
-	padding: 8px 6px 6px 40px;
+	height: 20px;
+	padding: 6px 0 6px 0;
 	border-bottom: 1px solid black;
 	}
 
 .spanHeadName {
+	position: absolute;
+	top: 6px;
+	left: 40px;
 	text-decoration: underline;
 	}
 
 .spanHeadValue {
 	position: absolute;
+	top: 6px;
 	left: 430px;
 	text-decoration: underline;
 	}
 
 .spanHeadKind {
 	position: absolute;
+	top: 6px;
 	left: 740px;
 	text-decoration: underline;
 	}

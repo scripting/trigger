@@ -230,12 +230,16 @@ $(window).resize (function () {
 	applyColumnGeometry ();
 	});
 
-function alignColumnHeads () { //the header labels line up over wherever the columns actually landed
+function alignColumnHeads () { //every title lines up over where its column actually landed, Name included
+	const leftHeads = $(".divColumnHeads").offset ().left;
+	const firstText = $("#divOutliner .concord-text:first");
+	if (firstText.length > 0) {
+		$(".spanHeadName").css ("left", (firstText.offset ().left - leftHeads) + "px");
+		}
 	const firstValue = $("#divOutliner .spanValue:first");
 	if (firstValue.length > 0) {
-		const leftHeads = $(".divColumnHeads").offset ().left;
-		$(".spanHeadValue").css ("left", (firstValue.offset ().left - leftHeads) + "px");
-		$(".spanHeadKind").css ("left", ($("#divOutliner .spanKind:first").offset ().left - leftHeads) + "px");
+		$(".spanHeadValue").css ("left", (firstValue.offset ().left - leftHeads + 10) + "px"); //past the column's dotted rule
+		$(".spanHeadKind").css ("left", ($("#divOutliner .spanKind:first").offset ().left - leftHeads + 10) + "px");
 		}
 	}
 
